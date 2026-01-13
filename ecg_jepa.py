@@ -273,6 +273,14 @@ class MaskTransformer(nn.Module):
         x : (bs, c, p, t)
         '''
         bs, c, p, t = x.shape
+        print('===========================')
+        # print(x.shape)
+        # print(c)
+        # print(self.c)
+        # print(p)
+        # print(self.p)
+        # print(t)
+        # print(self.t)
         assert c == self.c, 'Input tensor has wrong shape'
         assert p == self.p, 'Input tensor has wrong shape'
         assert t == self.t, 'Input tensor has wrong shape'

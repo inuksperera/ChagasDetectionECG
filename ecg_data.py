@@ -79,13 +79,14 @@ def extract_diagnosis_code(record):
             return comment.split(': ')[1]
     return None
 
-def get_ecg_data(data_dir, reduced_lead=True, use_more=False, dx=False):
+def get_ecg_data(data_dir, reduced_lead=False, use_more=False, dx=False):
     """
     Read ECG data from the specified directory and return the data as a numpy array.
 
     Args:
     data_dir (str): The directory containing the ECG data files.
     reduced_lead (bool): If True, only eight leads are used: I, II, V1, V2, V3, V4, V5, V6.
+                       : If False, all 12 leads are used.
     use_more (bool): If True, ECGs with more than 10s of data are split into multiple segments of 10s each.
     dx (bool): If True, extract the diagnosis code from the comments in the header file.
 
@@ -100,7 +101,13 @@ def get_ecg_data(data_dir, reduced_lead=True, use_more=False, dx=False):
     for filename in os.listdir(data_dir):
         if filename.endswith('.hea'):
             record_name = os.path.splitext(filename)[0]
-            record = wfdb.rdrecord(os.path.join(data_dir, record_name))
+            print(f'Processing record: {record_name}')
+            try:
+                record = wfdb.rdrecord(os.path.join(data_dir, record_name))
+            except Exception as e:
+                print(f"Skipping broken record {record_name}: {e}")
+                continue  # skip this broken record and keep going
+
             ecg_data = record.p_signal
             ecg_label = extract_diagnosis_code(record) if dx else None
 
@@ -135,7 +142,7 @@ def subdirectory(data_dir):
     data_dirs = [d for d in contents if os.path.isdir(os.path.join(data_dir, d))]
     return data_dirs
 
-def waves_cinc(data_dir, reduced_lead=True):
+def waves_cinc(data_dir, reduced_lead=False):
     waves = []
     for subdir in subdirectory(data_dir):
         for minibatch in subdirectory(os.path.join(data_dir, subdir)):
@@ -146,7 +153,7 @@ def waves_cinc(data_dir, reduced_lead=True):
     waves = remove_invalid_samples(waves)
     return waves
 
-def waves_shao(data_dir, reduced_lead=True):
+def waves_shao(data_dir, reduced_lead=False):
     waves = []
     for subdir in subdirectory(data_dir):
         for minibatch in subdirectory(os.path.join(data_dir, subdir)):
@@ -157,13 +164,13 @@ def waves_shao(data_dir, reduced_lead=True):
     waves = remove_invalid_samples(waves)
     return waves
 
-# def waves_shao(data_dir, reduced_lead=True):
+# def waves_shao(data_dir, reduced_lead=False):
 #     waves = get_ecg_data(data_dir, reduced_lead=reduced_lead, dx=False)
 #     waves = remove_invalid_samples(waves)
 #     return waves
 
 class Code15Dataset(Dataset):
-    def __init__(self, data_dir, transform=None, reduced_lead=True, downsample=True, use_cache=True):
+    def __init__(self, data_dir, transform=None, reduced_lead=False, downsample=True, use_cache=True):
         self.data_dir = data_dir
         self.files = glob.glob(os.path.join(data_dir, '*.hdf5'))
         self.transform = transform
@@ -233,7 +240,7 @@ class Code15Dataset(Dataset):
             
         return torch.tensor(wave, dtype=torch.float)
 
-def waves_ptbxl(data_dir, task='multilabel', reduced_lead=True, downsample=True):
+def waves_ptbxl(data_dir, task='multilabel', reduced_lead=False, downsample=True):
     from ptbxl_utils import load_dataset, compute_label_aggregations, select_data
     assert task in ['multilabel', 'multiclass']
 
@@ -273,13 +280,13 @@ def waves_ptbxl(data_dir, task='multilabel', reduced_lead=True, downsample=True)
     return waves_train, waves_test, labels_train, labels_test
 
 
-def waves_cpsc(data_dir, task='multilabel', reduced_lead=True, downsample=True):
+def waves_cpsc(data_dir, task='multilabel', reduced_lead=False, downsample=True):
     waves_cpsc = []
     labels_cpsc = []
     minibatches = []
 
     for minibatch in subdirectory(data_dir):
-        ecg_data, ecg_labels = get_ecg_data(os.path.join(data_dir, minibatch), reduced_lead=True,  dx=True)
+        ecg_data, ecg_labels = get_ecg_data(os.path.join(data_dir, minibatch), reduced_lead=False,  dx=True)
         waves_cpsc.append(ecg_data)
         labels_cpsc.append(ecg_labels)
         minibatches.extend([minibatch] * len(ecg_data))
@@ -354,7 +361,7 @@ def convert_to_multiclass(waves, labels):
 
     return waves, labels
 
-def waves_from_config(config, reduced_lead=True):
+def waves_from_config(config, reduced_lead=False):
     # model_name = config['model_name']
     data_dir = config['data_dir']
     dataset = config['dataset']
