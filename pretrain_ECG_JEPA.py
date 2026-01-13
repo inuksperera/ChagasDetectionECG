@@ -88,6 +88,8 @@ loading_time = time.time() - start_time
 print(f'Data loading time: {loading_time:.2f}s')
 
 dataset = ConcatDataset([dataset, dataset_code15])
+#colab code
+#train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=16)
 train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=8)
 del waves_shaoxing
 
