@@ -42,7 +42,10 @@ data_dir_code15 = args.data_dir_code15
 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
 # Create logs directory if it doesn't exist
-save_dir = f'./weights/ecg_jepa_{timestamp}_{mask_scale}'
+#colab code
+# save_dir = f'./weights/ecg_jepa_{timestamp}_{mask_scale}'
+save_dir = f'/content/drive/MyDrive/ChagasDetectionECG/weights/ecg_jepa_{timestamp}_{mask_scale}'
+
 os.makedirs(save_dir, exist_ok=True)
 log_file = os.path.join(save_dir, f'training_{timestamp}.log')
 
@@ -52,6 +55,7 @@ logging.basicConfig(filename=log_file, level=logging.INFO,
 
 def log_params(params_dict):
     for key, value in params_dict.items():
+        print('================================')
         logging.info(f'{key}: {value}')
         print(f'{key}: {value}')  
         
@@ -60,7 +64,7 @@ os.makedirs(save_dir, exist_ok=True)
 start_time = time.time()
 
 # Shaoxing (Ningbo + Chapman)
-waves_shaoxing = waves_shao(data_dir_shao)
+waves_shaoxing = waves_shao(data_dir_shao, reduced_lead=False)
 waves_shaoxing = downsample_waves(waves_shaoxing, 2500)
 print(f'Shao waves shape: {waves_shaoxing.shape}')
 logging.info(f'Shao waves shape: {waves_shaoxing.shape}')
@@ -68,15 +72,23 @@ logging.info(f'Shao waves shape: {waves_shaoxing.shape}')
 dataset = ECGDataset_pretrain(waves_shaoxing)
 
 # Code15
-dataset_code15 = Code15Dataset(data_dir_code15)
-print(f'Code15 waves shape: ({len(dataset_code15.file_indices)}, 8, 2500)')
-logging.info(f'Code15 waves shape: ({len(dataset_code15.file_indices)}, 8, 2500)')
+dataset_code15 = Code15Dataset(data_dir_code15, reduced_lead=False)
+
+# Print actual shape by sampling one example (handles empty dataset)
+if len(dataset_code15) > 0:
+    sample = dataset_code15[0]  # tensor of shape (channels, timesteps)
+    c, t = sample.shape
+    print(f'Code15 waves shape: ({len(dataset_code15)}, {c}, {t})')
+    logging.info(f'Code15 waves shape: ({len(dataset_code15)}, {c}, {t})')
+else:
+    print('Code15 dataset is empty')
+    logging.info('Code15 dataset is empty')
 
 loading_time = time.time() - start_time
 print(f'Data loading time: {loading_time:.2f}s')
 
 dataset = ConcatDataset([dataset, dataset_code15])
-train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=16)
+train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=8)
 del waves_shaoxing
 
 model = ecg_jepa(encoder_embed_dim=768, 
@@ -89,10 +101,10 @@ model = ecg_jepa(encoder_embed_dim=768,
                 mask_scale=mask_scale,
                 mask_type=mask_type,
                 pos_type='sincos',
-                c=8,
+                c=12,
                 p=50,
                 t=50).to('cuda')
-
+                #cuda code
 
 total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 total_params_million = total_params / 1000000
@@ -122,19 +134,25 @@ momentum_target_encoder_scheduler = (ema[0] + i*(ema[1]-ema[0])/(iterations_per_
 hyperparameters = vars(args)
 log_params(hyperparameters)
 
-scaler = GradScaler()
+scaler = torch.amp.GradScaler()
 
 for epoch in range(epochs):
+    print(f'Starting epoch {epoch + 1}/{epochs}...')
     start_time = time.time()
+    print('before training...')
     model.train()
+    print('training...1')
     total_loss = 0.
     for minibatch, wave in enumerate(train_loader):
+        # print(f'Epoch {epoch + 1}, Minibatch {minibatch + 1}/{len(train_loader)}', end='\r')
+        print(f'Epoch {epoch + 1}, Minibatch {minibatch + 1}/{len(train_loader)}')
         scheduler.step(epoch * iterations_per_epoch + minibatch)
         bs, c, t = wave.shape
+        #cuda code
         wave = wave.to('cuda')
 
         optimizer.zero_grad()
-        with autocast():  # Enable mixed precision
+        with torch.amp.autocast(device_type="cuda"): # Enable mixed precision
             loss = model(wave)    
 
         # Scale the loss and backward pass
@@ -154,9 +172,13 @@ for epoch in range(epochs):
     print(f'epoch={epoch:04d}/{epochs:04d}  loss={total_loss:.4f}  time={epoch_time:.2f}s')
     logging.info(f'epoch={epoch:04d}/{epochs:04d}  loss={total_loss:.4f}  time={epoch_time:.2f}s')
 
-    if epoch > 1 and (epoch + 1) % 5 == 0:
-        model.to('cpu')
-        torch.save({'encoder': model.encoder.state_dict(),
-                    'epoch': epoch,
-                    }, f'{save_dir}/epoch{epoch + 1}.pth')
-        model.to('cuda')
+    #colab code
+    # if epoch > 1 and (epoch + 1) % 5 == 0:
+    
+    model.to('cpu')
+    torch.save({'encoder': model.encoder.state_dict(),
+                'epoch': epoch,
+                }, f'{save_dir}/epoch{epoch + 1}.pth')
+    #cuda code
+    print(f'saved weights to {save_dir}/epoch{epoch + 1}.pth')
+    model.to('cuda')
