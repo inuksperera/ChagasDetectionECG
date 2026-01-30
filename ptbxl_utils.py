@@ -139,6 +139,8 @@ def load_raw_data_icbeb(df, sampling_rate, path):
     return data
 
 def load_raw_data_ptbxl(df, sampling_rate, path):
+    print('=======================================================')
+    print(f'Loading PTB-XL data at {sampling_rate}Hz from {path}...')
     if sampling_rate == 100:
         if os.path.exists(path + 'raw100.npy'):
             data = np.load(path+'raw100.npy', allow_pickle=True)
