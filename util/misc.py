@@ -293,7 +293,7 @@ def save_model(config,
                loss_scaler=None,
                metrics=None):
     to_save = {'epoch': epoch,
-               'model': model_without_ddp.state_dict(),
+               'encoder': model_without_ddp.state_dict(),
                'optimizer': optimizer.state_dict() if optimizer is not None else None,
                'scaler': loss_scaler.state_dict() if loss_scaler is not None else None,
                'config': config}

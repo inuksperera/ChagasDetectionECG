@@ -99,7 +99,7 @@ def main(config):
 
     logging.info(f'Loading {config["dataset"]} dataset...')
     print(f'Loading {config["dataset"]} dataset...')
-    waves_train, waves_test, labels_train, labels_test = waves_from_config(config,reduced_lead=True)
+    waves_train, waves_test, labels_train, labels_test = waves_from_config(config, reduced_lead=False)
 
     if config['task'] == 'multilabel':
         _, n_labels = labels_train.shape
@@ -141,7 +141,9 @@ def main(config):
         test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=num_workers)
         
         bs = config['dataloader']['batch_size']
+        print(f'Start train_loader_linear...')
         train_loader_linear = features_dataloader(encoder, train_loader, batch_size=bs, shuffle=True, device=device)
+        print(f'Start test_loader_linear...')
         test_loader_linear = features_dataloader(encoder, test_loader, batch_size=bs, shuffle=False, device=device)
 
         num_epochs = config['train']['epochs']
@@ -169,7 +171,38 @@ def main(config):
     std_f1 = np.std(F1s)
     logging.info(f"Mean AUC: {mean_auc:.3f} +- {std_auc:.3f}, Mean F1: {mean_f1:.3f} +- {std_f1:.3f}")
     print(f"Mean AUC: {mean_auc:.3f} +- {std_auc:.3f}, Mean F1: {mean_f1:.3f} +- {std_f1:.3f}")
+
+    # ==========================
+    # SAVE COMBINED MODEL
+    # ==========================
+    print("Saving combined model (Encoder + Linear Head)...")
+    from linear_probe_utils import FinetuningClassifier
+    # from util.misc import save_model # Not used, manual save
+
+    # Creating the wrapper
+    # linear_model is the last trained head from the loop
+    combined_model = FinetuningClassifier(encoder, embed_dim, n_labels, device=device).to(device)
+    combined_model.fc = linear_model
     
+    save_path = os.path.join(config['output_dir'], f'checkpoint_linear_eval_final.pth')
+    print(f"SAVING combined model to {save_path}")
+
+    # Manual save to ensure compatibility with models.load_encoder
+    # load_encoder expects ckpt['encoder']
+    # detect_disease full load expects ckpt['model'] or ckpt['state_dict'] with full keys
+    to_save = {
+        'encoder': encoder.state_dict(),          # Pure encoder weights (no prefix)
+        'model': combined_model.state_dict(),     # Combined weights (with encoder. and fc. prefixes)
+        'config': config,
+        'epoch': config['train']['epochs'],
+        'optimizer': optimizer.state_dict(),
+        'metrics': {'auc': mean_auc, 'f1': mean_f1}
+    }
+    
+    # Use torch.save directly
+    torch.save(to_save, save_path)
+    print(f"SUCCESSFULLY SAVED combined model to {save_path}")
+
 if __name__ == '__main__':
     config = parse()
 

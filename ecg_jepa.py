@@ -174,10 +174,10 @@ class MaskTransformer(nn.Module):
                 mask_scale=(0.3, .5),
                 mask_type='block',
                 pos_type='sincos',
-                c=8,
+                c=12,
                 p=50,
                 t=50,
-                leads=[0,1,2,3,4,5,6,7]
+                leads=[0,1,2,3,4,5,6,7,8,9,10,11]
                 ):
         super().__init__()
 
@@ -273,14 +273,6 @@ class MaskTransformer(nn.Module):
         x : (bs, c, p, t)
         '''
         bs, c, p, t = x.shape
-        print('===========================')
-        # print(x.shape)
-        # print(c)
-        # print(self.c)
-        # print(p)
-        # print(self.p)
-        # print(t)
-        # print(self.t)
         assert c == self.c, 'Input tensor has wrong shape'
         assert p == self.p, 'Input tensor has wrong shape'
         assert t == self.t, 'Input tensor has wrong shape'
