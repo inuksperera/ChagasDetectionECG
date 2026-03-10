@@ -249,9 +249,12 @@ def waves_ptbxl(data_dir, task='multilabel', reduced_lead=False, downsample=True
     assert cat in categories, f'Invalid category: {cat}, choose from {categories}'
 
     sampling_frequency=500
+    #colab code
+    no_of_samples = 291;
 
     # Load PTB-XL data
-    data, raw_labels = load_dataset(data_dir, sampling_frequency)
+    #colab code
+    data, raw_labels = load_dataset(data_dir, sampling_frequency, no_of_samples)
     data = data.transpose(0,2,1)
     
     if downsample:

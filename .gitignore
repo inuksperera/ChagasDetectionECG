@@ -13,3 +13,9 @@ cpc/__pycache__/cpc.cpython-39.pyc
 st_mem.py
 .tmp.driveupload
 .tmp.drivedownload
+downstream_tasks/output
+downstream_tasks/__pycache__
+weights/
+util/__pycache__
+saved_models/
+__pycache__/
