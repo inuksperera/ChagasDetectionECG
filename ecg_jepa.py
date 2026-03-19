@@ -174,10 +174,10 @@ class MaskTransformer(nn.Module):
                 mask_scale=(0.3, .5),
                 mask_type='block',
                 pos_type='sincos',
-                c=12,
+                c=8, #leads changed from 12 to 8
                 p=50,
                 t=50,
-                leads=[0,1,2,3,4,5,6,7,8,9,10,11]
+                leads=[0,1,2,3,4,5,6,7]   #leads changed from 12 to 8
                 ):
         super().__init__()
 
@@ -372,7 +372,7 @@ class MaskTransformerPredictor(nn.Module):
                 norm_layer=nn.LayerNorm,
                 init_std=0.02,  
                 pos_type='sincos',
-                c=9,
+                c=8, #leads changed from 9 to 8
                 p=50,
                 t=50,  
                 ):
@@ -477,11 +477,11 @@ class ecg_jepa(nn.Module):
                 init_std=0.02,
                 pos_type='sincos',
                 mask_type='block',
-                c=8,
+                c=8, #leads changed from 12 to 8
                 p=50,
                 t=50,
                 mask_scale=(0.15, .2),  
-                leads=[0,1,2,3,4,5,6,7]
+                leads=[0,1,2,3,4,5,6,7]   #leads changed from 12 to 8
                 ):
         
         super().__init__()

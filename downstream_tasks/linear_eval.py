@@ -99,7 +99,7 @@ def main(config):
 
     logging.info(f'Loading {config["dataset"]} dataset...')
     print(f'Loading {config["dataset"]} dataset...')
-    waves_train, waves_test, labels_train, labels_test = waves_from_config(config, reduced_lead=False)
+    waves_train, waves_test, labels_train, labels_test = waves_from_config(config, reduced_lead=True)
 
     if config['task'] == 'multilabel':
         _, n_labels = labels_train.shape
