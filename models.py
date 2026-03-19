@@ -12,7 +12,7 @@ def load_encoder(ckpt_dir, leads=None):
     
     # Dynamically infer the capacity 'c' (number of leads model was trained for)
     # the number of tokens in pos_embed is c * p, where p=50 is standard
-    inferred_c = 12 # Default
+    inferred_c = 8 # Default #leads changed from 12 to 8
     if 'pos_embed' in state_dict:
         pos_tokens = state_dict['pos_embed'].shape[0]
         inferred_c = pos_tokens // 50

@@ -13,17 +13,17 @@ import numpy as np
 import torch
 from detect_disease import detect_disease
 
-# st.title("Chagas Disease Detection from Standard 12-Lead ECG Using Deep Learning")
+# st.title("Chagas Disease Detection from reduced 8-Lead ECG Using Deep Learning")
 # st.markdown("""
 # # Chagas-JEPA
 
-# ## Chagas Disease Detection from Standard 12-Lead ECG Using Deep Learning
+# ## Chagas Disease Detection from reduced 8-Lead ECG Using Deep Learning
 # """)
 st.markdown("""
 <h1 style='text-align: center; margin-top: -40px;'>Chagas-JEPA</h1>
 
 <h3 style='text-align: center;'>
-Chagas Disease Detection from Standard <br/> 12-Lead ECG Using Deep Learning
+Chagas Disease Detection from reduced <br/> 8-Lead ECG Using Deep Learning
 </h3>
 
 <hr style="border: 1px solid white; opacity: 0.4;">
