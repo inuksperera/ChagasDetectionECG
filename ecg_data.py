@@ -385,3 +385,8 @@ def waves_from_config(config, reduced_lead=False):
     #     waves_test = waves_test[:, :, 125:-125]
 
     return waves_train, waves_test, labels_train, labels_test
+
+
+
+
+# Sami-Trop dataset Loading
