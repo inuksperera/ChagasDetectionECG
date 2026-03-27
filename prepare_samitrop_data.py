@@ -10,6 +10,7 @@ import os.path
 import pandas as pd
 import sys
 import wfdb
+from scipy.signal import resample
 
 
 # Parse arguments.
@@ -175,7 +176,7 @@ def run(args):
 
     # See https://zenodo.org/records/4905618 for more information about these values.
     lead_names = ['I', 'II', 'III', 'AVR', 'AVL', 'AVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']
-    sampling_frequency = 400
+    sampling_frequency = 500 #frequency changed to 500Hz from 400Hz
     units = 'mV'
 
     # Define the paramters for the WFDB files.
@@ -212,6 +213,10 @@ def run(args):
                 continue
             else:
                 physical_signals = physical_signals[r:s, :]
+
+            # Resample from 400Hz to 500Hz
+            new_length = int((500 / 400) * physical_signals.shape[0])
+            physical_signals = resample(physical_signals, new_length, axis=0)
 
             # Convert the signal to digital units; saturate the signal and represent NaNs as the lowest representable integer.
             digital_signals = gain * physical_signals
