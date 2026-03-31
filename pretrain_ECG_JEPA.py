@@ -64,15 +64,17 @@ os.makedirs(save_dir, exist_ok=True)
 start_time = time.time()
 
 # Shaoxing (Ningbo + Chapman)
-waves_shaoxing = waves_shao(data_dir_shao, reduced_lead=False)
+waves_shaoxing = waves_shao(data_dir_shao, reduced_lead=True) #reduced_lead changed to True
 waves_shaoxing = downsample_waves(waves_shaoxing, 2500)
 print(f'Shao waves shape: {waves_shaoxing.shape}')
 logging.info(f'Shao waves shape: {waves_shaoxing.shape}')
 
-dataset = ECGDataset_pretrain(waves_shaoxing)
+print('Reading Shao dataset')
+# dataset = ECGDataset_pretrain(waves_shaoxing)
 
 # Code15
-dataset_code15 = Code15Dataset(data_dir_code15, reduced_lead=False)
+print('Reading Code15 dataset')
+dataset_code15 = Code15Dataset(data_dir_code15, reduced_lead=True) #reduced_lead changed to True
 
 # Print actual shape by sampling one example (handles empty dataset)
 if len(dataset_code15) > 0:
@@ -103,7 +105,7 @@ model = ecg_jepa(encoder_embed_dim=768,
                 mask_scale=mask_scale,
                 mask_type=mask_type,
                 pos_type='sincos',
-                c=12,
+                c=8, #leads changed from 12 to 8
                 p=50,
                 t=50).to('cuda')
                 #cuda code
