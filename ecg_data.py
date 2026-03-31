@@ -240,6 +240,42 @@ class Code15Dataset(Dataset):
             
         return torch.tensor(wave, dtype=torch.float)
 
+
+def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=True):
+    from samitrop_utils import load_dataset, load_raw_data_samitrop
+    # compute_label_aggregations, select_data
+
+    sampling_frequency=500
+    #colab code
+    no_of_samples = 291;
+
+    # Load Sami-Trop data
+    #colab code
+    data, raw_labels = load_dataset(data_dir, sampling_frequency, no_of_samples)
+    # data = data.transpose(0,2,1)
+
+
+    # === TEST PRINT BLOCK ===
+    print("\n" + "="*30)
+    print("DEBUG: SaMi-Trop Partial implementation Test")
+    print(f"Data type: {type(data)}")
+    if hasattr(data, 'shape'):
+        print(f"Data shape: {data.shape} (Expected: ({no_of_samples}, 5000, 12))")
+    
+    print(f"Raw Labels type: {type(raw_labels)}")
+    print("Raw Labels head:")
+    print(raw_labels.head())  # Prints first 5 rows of the CSV
+    
+    # Check if 'Chagas' or relevant label columns exist
+    if 'is_chagas' in raw_labels.columns or 'label' in raw_labels.columns:
+        print("\nLabel Column values (first 5):")
+        # Adjust column name below based on your exams.csv structure
+        col = 'is_chagas' if 'is_chagas' in raw_labels.columns else raw_labels.columns[0]
+        print(raw_labels[col].head())
+    print("="*30 + "\n")
+    # ========================
+
+
 def waves_ptbxl(data_dir, task='multilabel', reduced_lead=False, downsample=True):
     from ptbxl_utils import load_dataset, compute_label_aggregations, select_data
     assert task in ['multilabel', 'multiclass']
@@ -378,6 +414,9 @@ def waves_from_config(config, reduced_lead=False):
 
     elif dataset == 'cpsc':
         waves_train, waves_test, labels_train, labels_test = waves_cpsc(data_dir, task, reduced_lead=reduced_lead)
+        
+    elif dataset == 'samitrop':
+        waves_train, waves_test, labels_train, labels_test = waves_samitrop(data_dir, task, reduced_lead=reduced_lead)
 
     # # st_mem needs shorter waves 
     # if model_name == 'st_mem':

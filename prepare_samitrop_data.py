@@ -176,7 +176,7 @@ def run(args):
 
     # See https://zenodo.org/records/4905618 for more information about these values.
     lead_names = ['I', 'II', 'III', 'AVR', 'AVL', 'AVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']
-    sampling_frequency = 500 #frequency changed to 500Hz from 400Hz
+    sampling_frequency = 400 #frequency changed to 500Hz from 400Hz
     units = 'mV'
 
     # Define the paramters for the WFDB files.
@@ -199,6 +199,8 @@ def run(args):
             # Perform basic error checking on the signal.
             num_samples, num_leads = np.shape(physical_signals)
             assert(num_leads == 12)
+            assert physical_signals.shape == (4096, 12), f"{i} WAGWAN TWIN LE SHAPE IS AHH {physical_signals.shape}"
+            print(f"Physical signal shape for {i}: {physical_signals.shape}")
 
             # Remove zero padding at the start and end of the signals..
             r = 0
@@ -218,6 +220,19 @@ def run(args):
             new_length = int((500 / 400) * physical_signals.shape[0])
             physical_signals = resample(physical_signals, new_length, axis=0)
 
+            # Enforce exactly 5000 samples by using padding (10 seconds at 500Hz)
+            # added 0's to the end of the signal if it was shorter than 5000 samples and cropped the signal if it was longer than 10s
+            target_length = 5000
+            current_length = physical_signals.shape[0]
+            
+            if current_length < target_length:
+                # Pad with zeros at the end
+                pad_amount = target_length - current_length
+                physical_signals = np.pad(physical_signals, ((0, pad_amount), (0, 0)), mode='constant')
+            elif current_length > target_length:
+                # Crop to perfectly match target length
+                physical_signals = physical_signals[:target_length, :]
+
             # Convert the signal to digital units; saturate the signal and represent NaNs as the lowest representable integer.
             digital_signals = gain * physical_signals
             digital_signals = np.round(digital_signals)
@@ -235,6 +250,10 @@ def run(args):
 
             # Add the patient metadata.
             comments = [f'Age: {age}', f'Sex: {sex}', f'Chagas label: {label}', f'Source: {source}']
+
+            # Check signal shape before saving
+            # if digital_signals.shape != (5000, 12):
+            print(f"--- Shape for {i}: {digital_signals.shape} ---")    
 
             # Save the signal.
             record = str(exam_id)
