@@ -276,6 +276,73 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
     # ========================
 
 
+    # === DATA PROCESSING ===
+    # Transpose to (n_samples, n_channels, n_timesteps)
+    data = data.transpose(0, 2, 1)
+
+    # Select leads if needed
+    if reduced_lead:
+        # Keep only leads I, II, V1, V2, V3, V4, V5, V6
+
+        print(f"\n--- Lead Reduction Debug (PTB-XL) ---")
+        print(f"Sample values before reduction (12 leads, first 5 timesteps):\n{data[0, :, :5]}")
+        
+        data = np.concatenate((data[:, :2, :], data[:, 6:, :]), axis=1)
+        
+        print(f"Sample values after reduction (8 leads, first 5 timesteps):\n{data[0, :, :5]}")
+        print("PTBXL SHAPE AFTER REDUCED LEAD: " + str(data.shape))
+        print("------------------------------------\n")
+
+    
+    # Downsample if needed
+    if downsample:
+        data = resample(data, 2500, axis=2)
+
+    # === LABEL PROCESSING ===
+    # Since the entire SaMi-Trop dataset is Chagas Positive (hardcoded in prepare_samitrop_data.py), We just generate an array of 1s.
+    if task == 'multilabel':
+        # Create a completely positive binary matrix: shape (n_samples, 1)
+        labels = np.ones((len(data), 1), dtype=np.float32)
+    elif task == 'multiclass':
+        # Create a completely positive 1D array: shape (n_samples,)
+        # We assume class '1' represents Chagas positive
+        labels = np.ones(len(data), dtype=np.int64)
+
+
+    # train-test split
+    # 1. Load metadata
+    df = pd.read_csv("exams.csv")          # 1631 rows
+    print(df.shape)                        # (1631, 6)
+
+    # 2. 70-20-10 split (stratify by age + sex for balance)
+    df_train, df_temp = train_test_split(
+        df, test_size=0.3, random_state=42,
+        stratify=pd.qcut(df['age'], q=10)   # age bins (or combine with is_male)
+    )
+
+    df_val, df_test = train_test_split(
+        df_temp, test_size=1/3, random_state=42,
+        stratify=pd.qcut(df_temp['age'], q=5)
+    )
+
+    print(f"Train: {len(df_train)} (~70%)")
+    print(f"Val:   {len(df_val)} (~20%)")
+    print(f"Test:  {len(df_test)} (~10%)")
+
+    # 3. Save the split indices (or just the exam_ids)
+    np.save("sami_trop_train_idx.npy", df_train.index.values)
+    np.save("sami_trop_val_idx.npy",   df_val.index.values)
+    np.save("sami_trop_test_idx.npy",  df_test.index.values)
+
+
+
+
+    # === CREATE DATASET ===
+    # dataset = torch.utils.data.TensorDataset(torch.tensor(data, dtype=torch.float), torch.tensor(labels, dtype=torch.float))
+
+    return dataset
+
+
 def waves_ptbxl(data_dir, task='multilabel', reduced_lead=True, downsample=True):
     from ptbxl_utils import load_dataset, compute_label_aggregations, select_data
     assert task in ['multilabel', 'multiclass']
@@ -285,13 +352,15 @@ def waves_ptbxl(data_dir, task='multilabel', reduced_lead=True, downsample=True)
     assert cat in categories, f'Invalid category: {cat}, choose from {categories}'
 
     sampling_frequency=500
-    #colab code
-    no_of_samples = 291;
+    # colab code
+    # no_of_samples = 291;
+    no_of_samples = 21799;
 
     # Load PTB-XL data
     #colab code
     data, raw_labels = load_dataset(data_dir, sampling_frequency, no_of_samples)
     data = data.transpose(0,2,1)
+    print("PTBXL SHAPE AFTER TRANSPOSE: " + str(data.shape))
     
     if downsample:
         data = np.array([resample(data[i], 2500, axis=1) for i in range(len(data))])
