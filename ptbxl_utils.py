@@ -142,7 +142,7 @@ def load_raw_data_icbeb(df, sampling_rate, path):
     return data
 
 def load_raw_data_ptbxl(df, sampling_rate, path, no_of_samples):
-    print('=================3======================================')
+    print('=================7======================================')
     print(f'Loading PTB-XL data at {sampling_rate}Hz from {path}...')
     if sampling_rate == 100:
         if os.path.exists(path + 'raw100.npy'):
@@ -154,42 +154,39 @@ def load_raw_data_ptbxl(df, sampling_rate, path, no_of_samples):
     elif sampling_rate == 500:
         output_path = path + 'raw500.npy'
         if os.path.exists(output_path):
-            print('Loading existing raw500.npy' + path)
-            data = np.load(output_path, allow_pickle=True)
-            print('Loaded existing raw500.npy' + path)
+            print('Loading existing raw500.npy from ' + path)
+            try:
+                data = np.load(output_path, allow_pickle=True)
+                print(f'Successfully loaded {len(data)} records.')
+                return data
+            except Exception as e:
+                print(f"Error loading {output_path}: {e}")
+                print("The file appears to be corrupted. Please delete it from Google Drive and run again.")
+                raise e
         else:
-            print('loading path: ' + path)
-            batch_size = 100          # tune: 1000–4000 depending on session
+            print('Creating new raw500.npy at: ' + path)
             n_total = len(df)
             if no_of_samples is not None:
-                n_total = no_of_samples
-            first_batch = True
-
+                n_total = min(no_of_samples, len(df))
+            
+            # Pre-allocate memory (21799 records at 500Hz is ~5.2GB)
+            # This handles all operations in RAM and prevents file corruption
+            data = np.empty((n_total, 5000, 12), dtype=np.float32)
+            
+            batch_size = 500
             for start in range(0, n_total, batch_size):
                 end = min(start + batch_size, n_total)
-                print(f"Processing records {start+1} to {end} / {n_total}")
+                print(f"Processing records {start} to {end} / {n_total}")
 
                 batch_filenames = df.filename_hr.iloc[start:end]
-                batch_data = [wfdb.rdsamp(path + f)[0] for f in tqdm(batch_filenames, desc="Batch")]
+                for idx, f in enumerate(tqdm(batch_filenames, desc="Batch")):
+                    # Load directly into pre-allocated array space
+                    data[start + idx] = wfdb.rdsamp(path + f)[0]
 
-                batch_array = np.array(batch_data, dtype=np.float32)   # (batch_size, 5000, 12)
+            print(f"Saving combined dataset to {output_path}...")
+            np.save(output_path, data)
+            print('=================PTB-XL DATASET READY======================================')
 
-                if first_batch:
-                    np.save(output_path, batch_array)
-                    first_batch = False
-                else:
-                    # Append by loading + concat + overwrite
-                    existing = np.load(output_path)
-                    combined = np.concatenate([existing, batch_array], axis=0)
-                    np.save(output_path, combined)
-                    del existing, combined   # free memory 
-
-                print(f"Saved")
-                del batch_data, batch_array
-               
-            print(f"loop ended")
-            data = np.load(output_path, allow_pickle=True)
-            print(f"Saved & loaded {output_path} ({os.path.getsize(output_path)/1e9:.2f} GB)")
     return data
 
 def compute_label_aggregations(df, folder, ctype):
