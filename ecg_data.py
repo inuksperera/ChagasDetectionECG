@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from utils import return_purified, return_purified_feature, return_unique
 from scipy.signal import resample
 from sklearn.model_selection import train_test_split
@@ -284,14 +285,14 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
     if reduced_lead:
         # Keep only leads I, II, V1, V2, V3, V4, V5, V6
 
-        print(f"\n--- Lead Reduction Debug (PTB-XL) ---")
-        print(f"Sample values before reduction (12 leads, first 5 timesteps):\n{data[0, :, :5]}")
+        # print(f"\n--- Lead Reduction Debug (PTB-XL) ---")
+        # print(f"Sample values before reduction (12 leads, first 5 timesteps):\n{data[0, :, :5]}")
         
         data = np.concatenate((data[:, :2, :], data[:, 6:, :]), axis=1)
         
-        print(f"Sample values after reduction (8 leads, first 5 timesteps):\n{data[0, :, :5]}")
-        print("PTBXL SHAPE AFTER REDUCED LEAD: " + str(data.shape))
-        print("------------------------------------\n")
+        # print(f"Sample values after reduction (8 leads, first 5 timesteps):\n{data[0, :, :5]}")
+        # print("PTBXL SHAPE AFTER REDUCED LEAD: " + str(data.shape))
+        # print("------------------------------------\n")
 
     # Downsample if needed
     if downsample:
@@ -300,18 +301,34 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
     # Since the entire SaMi-Trop dataset is Chagas Positive (hardcoded in prepare_samitrop_data.py), We just generate an array of 1s.
     if task == 'multilabel':
         # Create a completely positive binary matrix: shape (n_samples, 1)
-        labels = np.ones((len(data), 1), dtype=np.float32)
+        chagas_labels = np.ones((len(data), 1), dtype=np.float32)
     elif task == 'multiclass':
         # Create a completely positive 1D array: shape (n_samples,)
         # We assume class '1' represents Chagas positive
-        labels = np.ones(len(data), dtype=np.int64)
+        chagas_labels = np.ones(len(data), dtype=np.int64)
 
 
 
-    print(raw_labels['age'].values)
-    print(raw_labels['age'].values.dtype)
+    # print(raw_labels['age'].values)
+    # print(raw_labels['age'].values.dtype)
 
-    print(raw_labels.shape)  # (1631, 6)
+    print("raw_labels.shape" + str(raw_labels.shape))  # (1631, 6)
+    print('='*30)
+    print('values before stratification')
+    
+    # Check if 551877 exists in the dataset before trying to print it
+    target_ids = [551877, 158100, 709486, 253958, 587042, 204540, 446560, 96292, 181992]
+    for target_id in target_ids:
+        if target_id in raw_labels.index:
+            # Get the positional integer index (0-based) for this specific exam_id
+            target_idx = raw_labels.index.get_loc(target_id)
+            
+            print(f"Exam ID: {target_id} is at Positional Index: {target_idx}")
+            print(f"Lead 0, first 3 timesteps for {target_id}: {data[target_idx, 0, :3]}")
+        else:
+            print(f"Warning: Exam ID {target_id} was not found in raw_labels.index")
+            
+
 
     # Perform the 70-20-10 split (stratify by age + gender for balance)
     raw_labels['age_bin'] = pd.qcut(
@@ -325,34 +342,60 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
     raw_labels['stratification'] = raw_labels['age_bin'].astype(str) + "_" + raw_labels['is_male'].astype(str)
 
 
-    raw_labels_train, raw_labels_temp = train_test_split(
-        raw_labels,
+    # split both the raw labels, ecg data and chagas labels at once so that they follow the same order when shuffled
+    waves_train, waves_temp, raw_labels_train, raw_labels_temp, chagas_labels_train, chagas_labels_temp = train_test_split(
+        data,                # Numpy array with ECG data
+        raw_labels,          # Raw labels from CSV
+        chagas_labels,       # Chagas labels (1,0)
         test_size=0.3,
         random_state=42,
         stratify=raw_labels['stratification']
     )
 
-
-    raw_labels_val, raw_labels_test = train_test_split(
-        raw_labels_temp,
+    waves_validation, waves_test, raw_labels_validation, raw_labels_test, chagas_labels_validation, chagas_labels_test = train_test_split(
+        waves_temp,
+        raw_labels_temp, 
+        chagas_labels_temp,
         test_size=1/3,
         random_state=42,
         stratify=raw_labels_temp['stratification']
     )
 
     # Clean up helper columns
-    for split_df in [raw_labels_train, raw_labels_val, raw_labels_test]:
+    for split_df in [raw_labels_train, raw_labels_validation, raw_labels_test]:
         split_df.drop(columns=['age_bin', 'stratification'], inplace=True, errors='ignore')
 
-    print(raw_labels.shape)
-    print(raw_labels_train.shape)
-    print(raw_labels_temp.shape)
-    print(raw_labels_val.shape)
-    print(raw_labels_test.shape)
+    # print("raw_labels.shape" + str(raw_labels.shape) + str(raw_labels.columns))
+    # print("raw_labels_train.shape" + str(raw_labels_train.shape) + str(raw_labels_train.columns))
+    # print("raw_labels_temp.shape" + str(raw_labels_temp.shape) + str(raw_labels_temp.columns))
+    # print("raw_labels_validation.shape" + str(raw_labels_validation.shape) + str(raw_labels_validation.columns))
+    # print("raw_labels_test.shape" + str(raw_labels_test.shape) + str(raw_labels_test.columns))
+    print("\n=== SANITY CHECK: TRAINING SET ===")
+    print("Raw Labels (first 3):")
+    print(raw_labels_train.head(3))
+    print("Waves Array (first 3 shapes):", waves_train[:3].shape)
+    print(f"Waves Data Snippet (Lead 0, first 3 timesteps):\n Patient 0: {waves_train[0, 0, :3]}\n Patient 1: {waves_train[1, 0, :3]}\n Patient 2: {waves_train[2, 0, :3]}")
+    print("Chagas Labels (first 3):", chagas_labels_train[:3].flatten())
 
+    print("\n=== SANITY CHECK: VALIDATION SET ===")
+    print("Raw Labels (first 3):")
+    print(raw_labels_validation.head(3))
+    print("Waves Array (first 3 shapes):", waves_validation[:3].shape)
+    print(f"Waves Data Snippet (Lead 0, first 3 timesteps):\n Patient 0: {waves_validation[0, 0, :3]}\n Patient 1: {waves_validation[1, 0, :3]}\n Patient 2: {waves_validation[2, 0, :3]}")
+    print("Chagas Labels (first 3):", chagas_labels_validation[:3].flatten())
+
+    print("\n=== SANITY CHECK: TESTING SET ===")
+    print("Raw Labels (first 3):")
+    print(raw_labels_test.head(3))
+    print("Waves Array (first 3 shapes):", waves_test[:3].shape)
+    print(f"Waves Data Snippet (Lead 0, first 3 timesteps):\n Patient 0: {waves_test[0, 0, :3]}\n Patient 1: {waves_test[1, 0, :3]}\n Patient 2: {waves_test[2, 0, :3]}")
+    print("Chagas Labels (first 3):", chagas_labels_test[:3].flatten())
+    print("==================================\n")
+
+    print(data.shape)
 
     print(f"Train: {len(raw_labels_train)} (~70%)")
-    print(f"Val:   {len(raw_labels_val)} (~20%)")
+    print(f"Val:   {len(raw_labels_validation)} (~20%)")
     print(f"Test:  {len(raw_labels_test)} (~10%)")
 
     # 3. Save the split indices (or just the exam_ids)
@@ -360,12 +403,29 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
     # np.save("sami_trop_val_idx.npy",   df_val.index.values)
     # np.save("sami_trop_test_idx.npy",  df_test.index.values)
 
+    """
+    raw_labels: The original Pandas DataFrame from the CSV.
+    labels: A processed Pandas DataFrame that includes a strat_fold column (used to decide which samples go to Train vs. Test).
+    Y: The final NumPy Array (0's and 1's) that is used as the target for model training.
+    """
 
+    # stratified data for training 
+    waves_train = data[raw_labels_train.index]
+    labels_train = Y[raw_labels_train.index]
 
+    ## stratified data for validation
+    # waves_validation = data_[labels.strat_fold == 10]
+    # labels_validation = Y[labels.strat_fold == 10]
 
-    # === CREATE DATASET ===
-    # dataset = torch.utils.data.TensorDataset(torch.tensor(data, dtype=torch.float), torch.tensor(labels, dtype=torch.float))
+    ## stratified data for testing
+    # waves_test = data_[labels.strat_fold == 10]
+    # labels_test = Y[labels.strat_fold == 10]
 
+    # if task == 'multiclass':
+    #     waves_train, labels_train = convert_to_multiclass(waves_train, labels_train)
+    #     waves_test, labels_test = convert_to_multiclass(waves_test, labels_test)
+
+    # return waves_train, waves_test, labels_train, labels_test
     return dataset
 
 
