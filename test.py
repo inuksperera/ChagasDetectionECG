@@ -1,5 +1,6 @@
 import numpy as np
 from detect_disease import detect_disease
+import torch
 # 1. Load your ECG data (Shape: [Leads, Time] or [Batch, Leads, Time])
 # Example: 12 leads, 5000 time steps
 # my_ecg = np.load('my_ecg_sample.npy') 
@@ -34,7 +35,8 @@ try:
     ecg_input=dummy_data,
     # encoder_ckpt_path='./weights/multiblock_epoch100.pth',
     # head_ckpt_path='./output/linear_eval/checkpoint.pth', 
-    combined_ckpt_path='./downstream_tasks/output/linear_eval/checkpoint_linear_eval_final.pth', 
+    # combined_ckpt_path='./downstream_tasks/output/linear_eval/checkpoint_linear_eval_final.pth',
+    combined_ckpt_path='/content/drive/MyDrive/ChagasDetectionECG2/downstream_tasks/output/linear_eval/before checkpoint/checkpoint_linear_eval_final.pth', 
     num_classes=5, # 1 for binary classification
     device='cuda' if torch.cuda.is_available() else 'cpu'
 )

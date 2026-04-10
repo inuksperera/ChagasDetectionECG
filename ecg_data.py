@@ -267,12 +267,12 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
     print(raw_labels.head())  # Prints first 5 rows of the CSV
     
     # Check if 'Chagas' or relevant label columns exist
-    if 'is_chagas' in raw_labels.columns or 'label' in raw_labels.columns:
-        print("\nLabel Column values (first 5):")
-        # Adjust column name below based on your exams.csv structure
-        col = 'is_chagas' if 'is_chagas' in raw_labels.columns else raw_labels.columns[0]
-        print(raw_labels[col].head())
-    print("="*30 + "\n")
+    # if 'is_chagas' in raw_labels.columns or 'label' in raw_labels.columns:
+    #     print("\nLabel Column values (first 5):")
+    #     # Adjust column name below based on your exams.csv structure
+    #     col = 'is_chagas' if 'is_chagas' in raw_labels.columns else raw_labels.columns[0]
+    #     print(raw_labels[col].head())
+    # print("="*30 + "\n")
     # ========================
 
 
@@ -293,12 +293,10 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
         print("PTBXL SHAPE AFTER REDUCED LEAD: " + str(data.shape))
         print("------------------------------------\n")
 
-    
     # Downsample if needed
     if downsample:
         data = resample(data, 2500, axis=2)
 
-    # === LABEL PROCESSING ===
     # Since the entire SaMi-Trop dataset is Chagas Positive (hardcoded in prepare_samitrop_data.py), We just generate an array of 1s.
     if task == 'multilabel':
         # Create a completely positive binary matrix: shape (n_samples, 1)
@@ -309,30 +307,58 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
         labels = np.ones(len(data), dtype=np.int64)
 
 
-    # train-test split
-    # 1. Load metadata
-    df = pd.read_csv("exams.csv")          # 1631 rows
-    print(df.shape)                        # (1631, 6)
 
-    # 2. 70-20-10 split (stratify by age + sex for balance)
-    df_train, df_temp = train_test_split(
-        df, test_size=0.3, random_state=42,
-        stratify=pd.qcut(df['age'], q=10)   # age bins (or combine with is_male)
+    print(raw_labels['age'].values)
+    print(raw_labels['age'].values.dtype)
+
+    print(raw_labels.shape)  # (1631, 6)
+
+    # Perform the 70-20-10 split (stratify by age + gender for balance)
+    raw_labels['age_bin'] = pd.qcut(
+        raw_labels['age'], 
+        q=10, 
+        labels=False, 
+        duplicates='drop'    
     )
 
-    df_val, df_test = train_test_split(
-        df_temp, test_size=1/3, random_state=42,
-        stratify=pd.qcut(df_temp['age'], q=5)
+    # new column for stratification (combined age bins and gender)
+    raw_labels['stratification'] = raw_labels['age_bin'].astype(str) + "_" + raw_labels['is_male'].astype(str)
+
+
+    raw_labels_train, raw_labels_temp = train_test_split(
+        raw_labels,
+        test_size=0.3,
+        random_state=42,
+        stratify=raw_labels['stratification']
     )
 
-    print(f"Train: {len(df_train)} (~70%)")
-    print(f"Val:   {len(df_val)} (~20%)")
-    print(f"Test:  {len(df_test)} (~10%)")
+
+    raw_labels_val, raw_labels_test = train_test_split(
+        raw_labels_temp,
+        test_size=1/3,
+        random_state=42,
+        stratify=raw_labels_temp['stratification']
+    )
+
+    # Clean up helper columns
+    for split_df in [raw_labels_train, raw_labels_val, raw_labels_test]:
+        split_df.drop(columns=['age_bin', 'stratification'], inplace=True, errors='ignore')
+
+    print(raw_labels.shape)
+    print(raw_labels_train.shape)
+    print(raw_labels_temp.shape)
+    print(raw_labels_val.shape)
+    print(raw_labels_test.shape)
+
+
+    print(f"Train: {len(raw_labels_train)} (~70%)")
+    print(f"Val:   {len(raw_labels_val)} (~20%)")
+    print(f"Test:  {len(raw_labels_test)} (~10%)")
 
     # 3. Save the split indices (or just the exam_ids)
-    np.save("sami_trop_train_idx.npy", df_train.index.values)
-    np.save("sami_trop_val_idx.npy",   df_val.index.values)
-    np.save("sami_trop_test_idx.npy",  df_test.index.values)
+    # np.save("sami_trop_train_idx.npy", df_train.index.values)
+    # np.save("sami_trop_val_idx.npy",   df_val.index.values)
+    # np.save("sami_trop_test_idx.npy",  df_test.index.values)
 
 
 
