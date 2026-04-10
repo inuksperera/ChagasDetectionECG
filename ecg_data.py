@@ -267,13 +267,106 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
     print(raw_labels.head())  # Prints first 5 rows of the CSV
     
     # Check if 'Chagas' or relevant label columns exist
-    if 'is_chagas' in raw_labels.columns or 'label' in raw_labels.columns:
-        print("\nLabel Column values (first 5):")
-        # Adjust column name below based on your exams.csv structure
-        col = 'is_chagas' if 'is_chagas' in raw_labels.columns else raw_labels.columns[0]
-        print(raw_labels[col].head())
-    print("="*30 + "\n")
+    # if 'is_chagas' in raw_labels.columns or 'label' in raw_labels.columns:
+    #     print("\nLabel Column values (first 5):")
+    #     # Adjust column name below based on your exams.csv structure
+    #     col = 'is_chagas' if 'is_chagas' in raw_labels.columns else raw_labels.columns[0]
+    #     print(raw_labels[col].head())
+    # print("="*30 + "\n")
     # ========================
+
+
+    # === DATA PROCESSING ===
+    # Transpose to (n_samples, n_channels, n_timesteps)
+    data = data.transpose(0, 2, 1)
+
+    # Select leads if needed
+    if reduced_lead:
+        # Keep only leads I, II, V1, V2, V3, V4, V5, V6
+
+        print(f"\n--- Lead Reduction Debug (PTB-XL) ---")
+        print(f"Sample values before reduction (12 leads, first 5 timesteps):\n{data[0, :, :5]}")
+        
+        data = np.concatenate((data[:, :2, :], data[:, 6:, :]), axis=1)
+        
+        print(f"Sample values after reduction (8 leads, first 5 timesteps):\n{data[0, :, :5]}")
+        print("PTBXL SHAPE AFTER REDUCED LEAD: " + str(data.shape))
+        print("------------------------------------\n")
+
+    # Downsample if needed
+    if downsample:
+        data = resample(data, 2500, axis=2)
+
+    # Since the entire SaMi-Trop dataset is Chagas Positive (hardcoded in prepare_samitrop_data.py), We just generate an array of 1s.
+    if task == 'multilabel':
+        # Create a completely positive binary matrix: shape (n_samples, 1)
+        labels = np.ones((len(data), 1), dtype=np.float32)
+    elif task == 'multiclass':
+        # Create a completely positive 1D array: shape (n_samples,)
+        # We assume class '1' represents Chagas positive
+        labels = np.ones(len(data), dtype=np.int64)
+
+
+
+    print(raw_labels['age'].values)
+    print(raw_labels['age'].values.dtype)
+
+    print(raw_labels.shape)  # (1631, 6)
+
+    # Perform the 70-20-10 split (stratify by age + gender for balance)
+    raw_labels['age_bin'] = pd.qcut(
+        raw_labels['age'], 
+        q=10, 
+        labels=False, 
+        duplicates='drop'    
+    )
+
+    # new column for stratification (combined age bins and gender)
+    raw_labels['stratification'] = raw_labels['age_bin'].astype(str) + "_" + raw_labels['is_male'].astype(str)
+
+
+    raw_labels_train, raw_labels_temp = train_test_split(
+        raw_labels,
+        test_size=0.3,
+        random_state=42,
+        stratify=raw_labels['stratification']
+    )
+
+
+    raw_labels_val, raw_labels_test = train_test_split(
+        raw_labels_temp,
+        test_size=1/3,
+        random_state=42,
+        stratify=raw_labels_temp['stratification']
+    )
+
+    # Clean up helper columns
+    for split_df in [raw_labels_train, raw_labels_val, raw_labels_test]:
+        split_df.drop(columns=['age_bin', 'stratification'], inplace=True, errors='ignore')
+
+    print(raw_labels.shape)
+    print(raw_labels_train.shape)
+    print(raw_labels_temp.shape)
+    print(raw_labels_val.shape)
+    print(raw_labels_test.shape)
+
+
+    print(f"Train: {len(raw_labels_train)} (~70%)")
+    print(f"Val:   {len(raw_labels_val)} (~20%)")
+    print(f"Test:  {len(raw_labels_test)} (~10%)")
+
+    # 3. Save the split indices (or just the exam_ids)
+    # np.save("sami_trop_train_idx.npy", df_train.index.values)
+    # np.save("sami_trop_val_idx.npy",   df_val.index.values)
+    # np.save("sami_trop_test_idx.npy",  df_test.index.values)
+
+
+
+
+    # === CREATE DATASET ===
+    # dataset = torch.utils.data.TensorDataset(torch.tensor(data, dtype=torch.float), torch.tensor(labels, dtype=torch.float))
+
+    return dataset
 
 
 def waves_ptbxl(data_dir, task='multilabel', reduced_lead=True, downsample=True):
@@ -285,13 +378,15 @@ def waves_ptbxl(data_dir, task='multilabel', reduced_lead=True, downsample=True)
     assert cat in categories, f'Invalid category: {cat}, choose from {categories}'
 
     sampling_frequency=500
-    #colab code
-    no_of_samples = 291;
+    # colab code
+    # no_of_samples = 291;
+    no_of_samples = 21799;
 
     # Load PTB-XL data
     #colab code
     data, raw_labels = load_dataset(data_dir, sampling_frequency, no_of_samples)
     data = data.transpose(0,2,1)
+    print("PTBXL SHAPE AFTER TRANSPOSE: " + str(data.shape))
     
     if downsample:
         data = np.array([resample(data[i], 2500, axis=1) for i in range(len(data))])
