@@ -38,6 +38,8 @@ def load_raw_data_samitrop(df, sampling_rate, path, no_of_samples):
         if os.path.exists(output_path):
             print('Loading existing samitrop_raw500.npy from ' + output_path)
             data = np.load(output_path, allow_pickle=True)
+            if no_of_samples is not None:
+                data = data[:no_of_samples]
             print('Successfully loaded existing samitrop_raw500.npy from ' + output_path)
         else:
             print('Loading dataset in path: ' + path + "samitrop_output/")

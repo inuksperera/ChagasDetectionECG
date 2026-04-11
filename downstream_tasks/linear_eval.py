@@ -134,7 +134,9 @@ def main(config):
             waves_train_selected = waves_train
             labels_train_selected = labels_train
 
-        num_workers = config['dataloader']['num_workers']
+        # num_workers = config['dataloader']['num_workers']
+        # changed num_workers to 2
+        num_workers = 2
         train_dataset = ECGDataset(waves_train_selected, labels_train_selected)
         test_dataset = ECGDataset(waves_test, labels_test)
         train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=num_workers)
@@ -143,8 +145,11 @@ def main(config):
         bs = config['dataloader']['batch_size']
         print(f'Start train_loader_linear...')
         train_loader_linear = features_dataloader(encoder, train_loader, batch_size=bs, shuffle=True, device=device)
+        print(f'DONE train_loader_linear...')
+
         print(f'Start test_loader_linear...')
         test_loader_linear = features_dataloader(encoder, test_loader, batch_size=bs, shuffle=False, device=device)
+        print(f'DONE test_loader_linear...')
 
         num_epochs = config['train']['epochs']
         lr = config['train']['lr']

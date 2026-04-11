@@ -341,7 +341,6 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
     # new column for stratification (combined age bins and gender)
     raw_labels['stratification'] = raw_labels['age_bin'].astype(str) + "_" + raw_labels['is_male'].astype(str)
 
-
     # split both the raw labels, ecg data and chagas labels at once so that they follow the same order when shuffled
     waves_train, waves_temp, raw_labels_train, raw_labels_temp, chagas_labels_train, chagas_labels_temp = train_test_split(
         data,                # Numpy array with ECG data
@@ -410,8 +409,8 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
     """
 
     # stratified data for training 
-    waves_train = data[raw_labels_train.index]
-    labels_train = Y[raw_labels_train.index]
+    # waves_train = data[raw_labels_train.index]
+    # labels_train = Y[raw_labels_train.index]
 
     ## stratified data for validation
     # waves_validation = data_[labels.strat_fold == 10]
@@ -426,7 +425,10 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
     #     waves_test, labels_test = convert_to_multiclass(waves_test, labels_test)
 
     # return waves_train, waves_test, labels_train, labels_test
-    return dataset
+
+    # change to train and validation only (exclude test)
+    return waves_train, waves_validation, chagas_labels_train, chagas_labels_validation
+
 
 
 def waves_ptbxl(data_dir, task='multilabel', reduced_lead=True, downsample=True):

@@ -23,7 +23,7 @@ class MLPHead(nn.Module):
         x = self.relu(self.fc1(x))
         return self.fc2(x)
 
-def detect_disease(ecg_input, encoder_ckpt_path=None, head_ckpt_path=None, combined_ckpt_path=None, use_mlp=False, num_classes=5, device=None, threshold=0.5):
+def detect_disease(ecg_input, encoder_ckpt_path=None, head_ckpt_path=None, combined_ckpt_path=None, use_mlp=False, num_classes=1, device=None, threshold=0.5): #changed num_classes to 1 from 5
     if device is None:
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
     """
@@ -55,7 +55,7 @@ def detect_disease(ecg_input, encoder_ckpt_path=None, head_ckpt_path=None, combi
 
     encoder, embed_dim = load_encoder(ckpt_dir=init_ckpt_path)
     
-    # 2. Build the Wrapper
+    ## Build the Wrapper
     # Use FinetuningClassifier as the container (same as linear_eval/finetuning)
     model = FinetuningClassifier(encoder, embed_dim, num_classes, device=device)
     
@@ -67,7 +67,7 @@ def detect_disease(ecg_input, encoder_ckpt_path=None, head_ckpt_path=None, combi
     model.to(device)
     model.eval()
 
-    # 3. Load Weights
+    ## Load Weights
     if combined_ckpt_path:
         print(f"Loading combined model from {combined_ckpt_path}...")
         checkpoint = torch.load(combined_ckpt_path, map_location=device, weights_only=False)
@@ -97,7 +97,7 @@ def detect_disease(ecg_input, encoder_ckpt_path=None, head_ckpt_path=None, combi
             print(f"Compact load failed ({e}), trying full strict=False on wrapper...")
             model.load_state_dict(state_dict, strict=False)
 
-    # 4. Preprocess Input
+    ## Preprocess Input
     if isinstance(ecg_input, np.ndarray):
         ecg_input = torch.from_numpy(ecg_input).float()
     
@@ -115,7 +115,7 @@ def detect_disease(ecg_input, encoder_ckpt_path=None, head_ckpt_path=None, combi
         # torch.nn.functional.interpolate expects [batch, channels, length]
         ecg_input = torch.nn.functional.interpolate(ecg_input, size=required_length, mode='linear', align_corners=False)
     
-    # 5. Inference
+    ## Inference
     with torch.no_grad():
         # FinetuningClassifier forward passes input -> encoder -> head
         logits = model(ecg_input)
@@ -142,6 +142,20 @@ def detect_disease(ecg_input, encoder_ckpt_path=None, head_ckpt_path=None, combi
                 'top_probs': topk_probs.cpu().numpy()
             }
             return result
+        elif num_classes == 1:
+            probs = torch.sigmoid(logits)
+            predictions = (probs > threshold).int()
+            return {
+                'prediction': predictions.cpu().numpy(),
+                'probability': probs.cpu().numpy()
+            }
+            # return {
+            #     'logits': logits.squeeze(),
+            #     'probabilities': probabilities.squeeze(),
+            #     'predictions': predictions.squeeze(),
+            #     'probability_positive': probabilities.squeeze().item() if probabilities.numel() == 1 else probabilities.squeeze(),
+            #     'predicted_class': int(predictions.squeeze().item()) if predictions.numel() == 1 else predictions.squeeze()
+            # }
 
         # --- PRESERVED BINARY LOGIC  ---
         # if num_classes == 1:
