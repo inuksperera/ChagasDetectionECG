@@ -304,7 +304,7 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
         chagas_labels = np.ones((len(data), 1), dtype=np.float32)
     elif task == 'multiclass':
         # Create a completely positive 1D array: shape (n_samples,)
-        # We assume class '1' represents Chagas positive
+        # Assume class '1' represents Chagas positive
         chagas_labels = np.ones(len(data), dtype=np.int64)
 
 
@@ -428,6 +428,77 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
 
     # change to train and validation only (exclude test)
     return waves_train, waves_validation, chagas_labels_train, chagas_labels_validation
+
+
+# Reimplemented the waves_ptbxl() function for chagas detection
+def waves_ptbxl_chagas(data_dir, task='multilabel', reduced_lead=True, downsample=True):
+    from ptbxl_utils import load_dataset
+    
+    assert task in ['multilabel', 'multiclass']
+
+    # cat = 'superdiagnostic'
+    # categories = ['all', 'diagnostic', 'subdiagnostic', 'superdiagnostic', 'form', 'rhythm']
+    # assert cat in categories, f'Invalid category: {cat}, choose from {categories}'
+
+    sampling_frequency=500
+    # colab code
+    no_of_samples = 291;
+    # no_of_samples = 21799;
+
+    # Load PTB-XL data
+    #colab code
+    data, raw_labels = load_dataset(data_dir, sampling_frequency, no_of_samples)
+    data = data.transpose(0,2,1)
+    print("PTBXL SHAPE AFTER TRANSPOSE: " + str(data.shape))
+    
+    if downsample:
+        data = np.array([resample(data[i], 2500, axis=1) for i in range(len(data))])
+    
+    if reduced_lead:
+        data = np.concatenate([data[:,:2], data[:,6:]], axis=1)
+
+
+    # Since the entire PTB-XL dataset is Chagas Negative, We just generate an array of 0s.
+    if task == 'multilabel':
+        # Create a completely negative binary matrix: shape (n_samples, 1)
+        chagas_labels = np.zeros((len(data), 1), dtype=np.float32)
+    elif task == 'multiclass':
+        # Create a completely negative 1D array: shape (n_samples,)
+        # Assume class '0' represents Chagas negative
+        chagas_labels = np.zeros(len(data), dtype=np.int64)
+
+
+
+    # Preprocess label data
+    # labels = compute_label_aggregations(raw_labels, data_dir, cat)
+    # Select relevant data and convert to one-hot
+    # data_, labels, Y, _ = select_data(data, labels, cat, min_samples=0)
+    # data_, labels, Y = 
+
+
+    print("DATA SHAPE: " + str(data.shape))
+    print("CHAGAS LABELS SHAPE: " + str(chagas_labels.shape))
+    print("RAW LABELS SHAPE: " + str(raw_labels.shape))
+
+    # 1-9 for training 
+    waves_train = data[raw_labels.strat_fold < 10]
+    labels_train = chagas_labels[raw_labels.strat_fold < 10]
+
+    # 10 for validation
+    waves_test = data[raw_labels.strat_fold == 10]
+    labels_test = chagas_labels[raw_labels.strat_fold == 10]
+
+    print("WAVES TRAIN SHAPE: " + str(waves_train.shape))
+    print("LABELS TRAIN SHAPE: " + str(labels_train.shape))
+    print("WAVES TEST SHAPE: " + str(waves_test.shape))
+    print("LABELS TEST SHAPE: " + str(labels_test.shape))
+
+    # if task == 'multiclass':
+    #     waves_train, labels_train = convert_to_multiclass(waves_train, labels_train)
+    #     waves_test, labels_test = convert_to_multiclass(waves_test, labels_test)
+
+    return waves_train, waves_test, labels_train, labels_test
+
 
 
 
@@ -574,6 +645,9 @@ def waves_from_config(config, reduced_lead=True): #reduced_lead changed to True
         
     elif dataset == 'samitrop':
         waves_train, waves_test, labels_train, labels_test = waves_samitrop(data_dir, task, reduced_lead=reduced_lead)
+    
+    elif dataset == 'ptbxl_chagas':
+        waves_train, waves_test, labels_train, labels_test = waves_ptbxl_chagas(data_dir, task, reduced_lead=reduced_lead)
 
     # # st_mem needs shorter waves 
     # if model_name == 'st_mem':
