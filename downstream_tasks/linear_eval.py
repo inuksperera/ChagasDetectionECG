@@ -50,6 +50,14 @@ def parse():
                         default="/mount/ecg/ptb-xl-1.0.3/", # "/mount/ecg/cpsc_2018/"
                         type=str,
                         help='dataset directory')
+                        
+    parser.add_argument('--data_dir_ptbxl',
+                        type=str,
+                        help='dataset directory')
+
+    parser.add_argument('--data_dir_samitrop',
+                        type=str,
+                        help='dataset directory')
     
     parser.add_argument('--task',
                         default="multilabel",

@@ -17,6 +17,17 @@ from concurrent.futures import ThreadPoolExecutor
 def downsample_waves(waves, new_size):
     return np.array([resample(wave, new_size, axis=1) for wave in waves])
 
+
+# Function to normalize the voltage range of each ECG signal per lead, scaling all signals to a consistent range. (used for combining PTB-XL and SaMi-Trop since they have different voltage ranges)
+def normalize_ecg_per_lead(data):
+    """Z-score normalize each lead of each ECG independently.
+    data shape: (n_samples, n_leads, n_timesteps)"""
+    eps = 1e-8
+    mean = np.mean(data, axis=2, keepdims=True)
+    std = np.std(data, axis=2, keepdims=True)
+    return (data - mean) / (std + eps)
+
+
 def remove_invalid_samples(waves, index=False):
     """
     Remove samples with NaN values or samples with the first 15 timesteps being all zeros.
@@ -248,7 +259,8 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
 
     sampling_frequency=500
     #colab code
-    no_of_samples = 291;
+    # no_of_samples = 291;
+    no_of_samples = 1631;
 
     # Load Sami-Trop data
     #colab code
@@ -442,8 +454,8 @@ def waves_ptbxl_chagas(data_dir, task='multilabel', reduced_lead=True, downsampl
 
     sampling_frequency=500
     # colab code
-    no_of_samples = 291;
-    # no_of_samples = 21799;
+    # no_of_samples = 291;
+    no_of_samples = 21799;
 
     # Load PTB-XL data
     #colab code
@@ -480,16 +492,22 @@ def waves_ptbxl_chagas(data_dir, task='multilabel', reduced_lead=True, downsampl
     print("CHAGAS LABELS SHAPE: " + str(chagas_labels.shape))
     print("RAW LABELS SHAPE: " + str(raw_labels.shape))
 
-    # 1-9 for training 
-    waves_train = data[raw_labels.strat_fold < 10]
-    labels_train = chagas_labels[raw_labels.strat_fold < 10]
+    # 1-8 for training 
+    waves_train = data[raw_labels.strat_fold < 9]
+    labels_train = chagas_labels[raw_labels.strat_fold < 9]
 
-    # 10 for validation
+    # 9 for validation
+    waves_validation = data[raw_labels.strat_fold == 9]
+    labels_validation = chagas_labels[raw_labels.strat_fold == 9]
+
+    # 10 for testing
     waves_test = data[raw_labels.strat_fold == 10]
     labels_test = chagas_labels[raw_labels.strat_fold == 10]
 
     print("WAVES TRAIN SHAPE: " + str(waves_train.shape))
     print("LABELS TRAIN SHAPE: " + str(labels_train.shape))
+    print("WAVES VALIDATION SHAPE: " + str(waves_validation.shape))
+    print("LABELS VALIDATION SHAPE: " + str(labels_validation.shape))
     print("WAVES TEST SHAPE: " + str(waves_test.shape))
     print("LABELS TEST SHAPE: " + str(labels_test.shape))
 
@@ -497,9 +515,111 @@ def waves_ptbxl_chagas(data_dir, task='multilabel', reduced_lead=True, downsampl
     #     waves_train, labels_train = convert_to_multiclass(waves_train, labels_train)
     #     waves_test, labels_test = convert_to_multiclass(waves_test, labels_test)
 
-    return waves_train, waves_test, labels_train, labels_test
+    return waves_train, waves_validation, labels_train, labels_validation
 
 
+# Return the combined data from PTB-XL and SAMI-TROP with waves and labels for training and testing
+def waves_combined_data(data_dir_ptbxl, data_dir_samitrop, task='multilabel', reduced_lead=True, downsample=True):
+    
+    # Load PTB-XL data
+    waves_train_ptbxl, waves_test_ptbxl, labels_train_ptbxl, labels_test_ptbxl = waves_ptbxl_chagas(data_dir_ptbxl, task, reduced_lead=reduced_lead)
+
+    # Save a snippet of the raw PTB-XL data before normalization (first 5 ECGs, Lead 0, first 10 timesteps)
+    ptbxl_before = waves_train_ptbxl[:5, 0, :10].copy()
+    ptbxl_train_min_before, ptbxl_train_max_before = np.min(waves_train_ptbxl), np.max(waves_train_ptbxl)
+    ptbxl_test_min_before, ptbxl_test_max_before = np.min(waves_test_ptbxl), np.max(waves_test_ptbxl)
+
+    # normalize the ranges for voltage values for combining the two datasets, scaling all signals to a consistent range
+    waves_train_ptbxl = normalize_ecg_per_lead(waves_train_ptbxl)
+    waves_test_ptbxl = normalize_ecg_per_lead(waves_test_ptbxl)
+
+    print("\n" + "="*80)
+    print("DEBUG: PTB-XL Normalization Check")
+    print(f"TRAIN Range BEFORE: Min={ptbxl_train_min_before:.4f}, Max={ptbxl_train_max_before:.4f}")
+    print(f"TRAIN Range AFTER : Min={np.min(waves_train_ptbxl):.4f}, Max={np.max(waves_train_ptbxl):.4f}")
+    print(f"TEST Range BEFORE : Min={ptbxl_test_min_before:.4f}, Max={ptbxl_test_max_before:.4f}")
+    print(f"TEST Range AFTER  : Min={np.min(waves_test_ptbxl):.4f}, Max={np.max(waves_test_ptbxl):.4f}")
+    print("-" * 80)
+    for i in range(5):
+        print(f"Patient {i} BEFORE: {ptbxl_before[i]}")
+        print(f"Patient {i} AFTER : {waves_train_ptbxl[i, 0, :10]}\n")
+    print("="*80 + "\n")
+
+
+    print("PTB-XL TRAIN SHAPE: " + str(waves_train_ptbxl.shape))
+    print("PTB-XL TEST SHAPE: " + str(waves_test_ptbxl.shape))
+    print("PTB-XL LABELS TRAIN SHAPE: " + str(labels_train_ptbxl.shape))
+    print("PTB-XL LABELS TEST SHAPE: " + str(labels_test_ptbxl.shape))
+   
+    # Load SAMI-TROP data
+    waves_train_samitrop, waves_test_samitrop, labels_train_samitrop, labels_test_samitrop = waves_samitrop(data_dir_samitrop, task, reduced_lead=reduced_lead)
+
+    # Save a snippet of the raw SaMi-Trop data before normalization
+    samitrop_before = waves_train_samitrop[:5, 0, :10].copy()
+    sami_train_min_before, sami_train_max_before = np.min(waves_train_samitrop), np.max(waves_train_samitrop)
+    sami_test_min_before, sami_test_max_before = np.min(waves_test_samitrop), np.max(waves_test_samitrop)
+
+    # normalize the ranges for voltage values for combining the two datasets, scaling all signals to a consistent range
+    waves_train_samitrop = normalize_ecg_per_lead(waves_train_samitrop)
+    waves_test_samitrop = normalize_ecg_per_lead(waves_test_samitrop)
+
+    print("\n" + "="*80)
+    print("DEBUG: SAMI-TROP Normalization Check")
+    print(f"TRAIN Range BEFORE: Min={sami_train_min_before:.4f}, Max={sami_train_max_before:.4f}")
+    print(f"TRAIN Range AFTER : Min={np.min(waves_train_samitrop):.4f}, Max={np.max(waves_train_samitrop):.4f}")
+    print(f"TEST Range BEFORE : Min={sami_test_min_before:.4f}, Max={sami_test_max_before:.4f}")
+    print(f"TEST Range AFTER  : Min={np.min(waves_test_samitrop):.4f}, Max={np.max(waves_test_samitrop):.4f}")
+    print("-" * 80)
+    for i in range(5):
+        print(f"Patient {i} BEFORE: {samitrop_before[i]}")
+        print(f"Patient {i} AFTER : {waves_train_samitrop[i, 0, :10]}\n")
+    print("="*80 + "\n")
+
+    print("SAMI-TROP TRAIN SHAPE: " + str(waves_train_samitrop.shape))
+    print("SAMI-TROP TEST SHAPE: " + str(waves_test_samitrop.shape))
+    print("SAMI-TROP LABELS TRAIN SHAPE: " + str(labels_train_samitrop.shape))
+    print("SAMI-TROP LABELS TEST SHAPE: " + str(labels_test_samitrop.shape))
+
+
+
+    print("\n" + "="*150)
+    print("DEBUG: DATASET VOLTAGE SCALE COMPARISON")
+    print("-" * 150)
+    # Average across patients (axis 0) and time (axis 2) to get per-lead mean
+    ptbxl_mean = np.mean(waves_train_ptbxl, axis=(0, 2))
+    sami_mean = np.mean(waves_train_samitrop, axis=(0, 2))
+    ptbxl_abs_mean = np.mean(np.abs(waves_train_ptbxl), axis=(0, 2))
+    sami_abs_mean = np.mean(np.abs(waves_train_samitrop), axis=(0, 2))
+
+    print(f"PTB-XL Mean Voltage per Lead:     {ptbxl_mean}")
+    print(f"SAMI-TROP Mean Voltage per Lead:  {sami_mean}")
+    print(f"PTB-XL Mean |Voltage| per Lead:   {ptbxl_abs_mean}")
+    print(f"SAMI-TROP Mean |Voltage| per Lead: {sami_abs_mean}")
+    print("="*50 + "\n")
+
+
+
+    # Concatenate the data
+    # Training data
+    waves_train_combined = np.concatenate((waves_train_ptbxl, waves_train_samitrop), axis=0)
+    labels_train_combined = np.concatenate((labels_train_ptbxl, labels_train_samitrop), axis=0)
+
+    # Testing data
+    waves_test_combined = np.concatenate((waves_test_ptbxl, waves_test_samitrop), axis=0)
+    labels_test_combined = np.concatenate((labels_test_ptbxl, labels_test_samitrop), axis=0)
+
+    print("WAVES TRAIN COMBINED SHAPE: " + str(waves_train_combined.shape))
+    print("LABELS TRAIN COMBINED SHAPE: " + str(labels_train_combined.shape))
+    print("WAVES TEST COMBINED SHAPE: " + str(waves_test_combined.shape))
+    print("LABELS TEST COMBINED SHAPE: " + str(labels_test_combined.shape))
+    
+# waves_train, waves_test, labels_train, labels_test = waves_samitrop(data_dir, task, reduced_lead=reduced_lead)
+    
+#     elif dataset == 'ptbxl_chagas':
+#         waves_train, waves_test, labels_train, labels_test = waves_ptbxl_chagas(data_dir, task, reduced_lead=reduced_lead)
+
+        
+    return waves_train_combined, waves_test_combined, labels_train_combined, labels_test_combined
 
 
 def waves_ptbxl(data_dir, task='multilabel', reduced_lead=True, downsample=True):
@@ -648,6 +768,12 @@ def waves_from_config(config, reduced_lead=True): #reduced_lead changed to True
     
     elif dataset == 'ptbxl_chagas':
         waves_train, waves_test, labels_train, labels_test = waves_ptbxl_chagas(data_dir, task, reduced_lead=reduced_lead)
+
+    elif dataset == 'combined_data':
+        data_dir_ptbxl = config['data_dir_ptbxl']
+        data_dir_samitrop = config['data_dir_samitrop']
+
+        waves_train, waves_test, labels_train, labels_test = waves_combined_data(data_dir_ptbxl, data_dir_samitrop, task, reduced_lead=reduced_lead)
 
     # # st_mem needs shorter waves 
     # if model_name == 'st_mem':
