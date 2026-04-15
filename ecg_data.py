@@ -259,8 +259,8 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
 
     sampling_frequency=500
     #colab code
-    # no_of_samples = 291;
-    no_of_samples = 1631;
+    no_of_samples = 291;
+    # no_of_samples = 1631;
 
     # Load Sami-Trop data
     #colab code
@@ -454,8 +454,8 @@ def waves_ptbxl_chagas(data_dir, task='multilabel', reduced_lead=True, downsampl
 
     sampling_frequency=500
     # colab code
-    # no_of_samples = 291;
-    no_of_samples = 21799;
+    no_of_samples = 291;
+    # no_of_samples = 21799;
 
     # Load PTB-XL data
     #colab code

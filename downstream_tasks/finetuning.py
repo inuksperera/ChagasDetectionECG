@@ -57,6 +57,14 @@ def parse():
                         default="/mount/ecg/ptb-xl-1.0.3/",
                         type=str,
                         help='dataset directory')
+                                               
+    parser.add_argument('--data_dir_ptbxl',
+                        type=str,
+                        help='dataset directory')
+
+    parser.add_argument('--data_dir_samitrop',
+                        type=str,
+                        help='dataset directory')
     
     parser.add_argument('--task',
                         default="multiclass",
@@ -67,6 +75,11 @@ def parse():
                         default=1.0,
                         type=float,
                         help='data percentage (from 0 to 1) to use in few-shot learning')
+                        
+    parser.add_argument('--yaml_path',
+                        default='../configs/downstream/finetuning/fine_tuning_mol_jepa.yaml',
+                        type=str,
+                        help='path to the yaml config file')
     
 
 
@@ -74,7 +87,7 @@ def parse():
     args, unknown = parser.parse_known_args()
 
 
-    with open(os.path.realpath(f'../configs/downstream/finetuning/fine_tuning_ejepa.yaml'), 'r') as f:
+    with open(os.path.realpath(args.yaml_path), 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
 
@@ -109,7 +122,7 @@ def main(config):
     np.random.seed(seed)
 
     task = config['task']
-    config['metric']['task'] = task
+    # Task will be set in config['metric'] later based on label counts
 
     # define data augmentation
     aug = {
@@ -138,18 +151,28 @@ def main(config):
     # load dataset
     logging.info(f'Loading {config["dataset"]} dataset...')
     print(f'Loading {config["dataset"]} dataset...')
-    waves_train, waves_test, labels_train, labels_test = waves_from_config(config)
+    waves_train, waves_test, labels_train, labels_test = waves_from_config(config, reduced_lead=True)
     
     if task == 'multilabel':
         _, n_labels = labels_train.shape
-        config['metric']['num_labels'] = n_labels
-        print(f"Number of labels: {n_labels}")
         n = n_labels
+        if n_labels == 1:
+            print(f"Number of labels: {n_labels} (Detected Binary Classification)")
+            config['metric']['task'] = 'binary'
+        else:
+            print(f"Number of labels: {n_labels}")
+            config['metric']['task'] = 'multilabel'
+            config['metric']['num_labels'] = n_labels
     else:
         n_classes = len(np.unique(labels_train))
-        config['metric']['num_classes'] = n_classes
-        print(f"Number of classes: {n_classes}")
         n = n_classes
+        if n_classes == 2:
+            print(f"Number of classes: {n_classes} (Detected Binary Classification)")
+            config['metric']['task'] = 'binary'
+        else:
+            print(f"Number of classes: {n_classes}")
+            config['metric']['task'] = 'multiclass'
+            config['metric']['num_classes'] = n_classes
     
     print(f'')
     train_dataset = ECGDataset(waves_train, labels_train, train_transforms)
@@ -163,6 +186,13 @@ def main(config):
     logging.info(f'Loading encoder from {config["ckpt_dir"]}...')
     print(f'Loading encoder from {config["ckpt_dir"]}...')
     encoder, embed_dim = load_encoder(ckpt_dir=config['ckpt_dir'])
+
+    if config.get('model', {}).get('name') == 'mol_jepa':
+        from mol import MoLJEPA
+        mol_kwargs = config['model'].get('mol', {})
+        print(f"Wrapping base encoder with MoLJEPA (kwargs: {mol_kwargs})...")
+        encoder = MoLJEPA(encoder, **mol_kwargs)
+
     encoder = encoder.to(device)
     model = FinetuningClassifier(encoder, encoder_dim=embed_dim, num_labels=n).to(device)
 
@@ -190,7 +220,9 @@ def main(config):
     output_dir = config['output_dir']
     log_writer = None
 
+    print("Training Started")
     for epoch in range(config['train']['epochs']):
+        print(f"Epoch {epoch+1}/{config['train']['epochs']}")
         train_stats = train_one_epoch(model,
                                         criterion,
                                         data_loader_train,
@@ -230,6 +262,27 @@ def main(config):
                 best_metrics[metric_name] = curr_metric
             logging.info(f"Best {metric_name}: {best_metrics[metric_name]:.3f}")
             print(f"Best {metric_name}: {best_metrics[metric_name]:.3f}")
+
+        # ==========================
+        # SAVE MODEL CHECKPOINT
+        # ==========================
+        print("Saving full finetuned model (Encoder + Linear Head)...")
+        
+        save_path = os.path.join(config['output_dir'], f'checkpoint_finetuning_{config["dataset"]}_epoch{epoch}.pth')
+        print(f"SAVING model to {save_path}")
+
+        # Ensure compatibility with models.load_encoder
+        to_save = {
+            'encoder': encoder.state_dict(),          # Pure encoder weights (no prefix)
+            'model': model.state_dict(),             # Combined weights (with encoder. and fc. prefixes)
+            'config': config,
+            'epoch': epoch,
+            'optimizer': optimizer.state_dict(),
+            'metrics': metrics                       # Store the exact metrics for this epoch
+        }
+        
+        torch.save(to_save, save_path)
+        print(f"SUCCESSFULLY SAVED model to {save_path}")
 
         print('========================================================================================')
 

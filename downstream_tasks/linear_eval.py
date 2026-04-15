@@ -69,11 +69,15 @@ def parse():
                         type=float,
                         help='data percentage (from 0 to 1) to use in few-shot learning')
 
-    
+    parser.add_argument('--yaml_path',
+                        default='../configs/downstream/linear_eval/linear_eval_mol_jepa.yaml',
+                        type=str,
+                        help='path to the yaml config file')
+
     # Use parse_known_args instead of parse_args
     args, unknown = parser.parse_known_args()
 
-    with open(os.path.realpath(f'../configs/downstream/linear_eval/linear_eval_ejepa.yaml'), 'r') as f:
+    with open(os.path.realpath(args.yaml_path), 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
     for k, v in vars(args).items():
@@ -119,6 +123,13 @@ def main(config):
     logging.info(f'Loading encoder from {config["ckpt_dir"]}...')
     print(f'Loading encoder from {config["ckpt_dir"]}...')
     encoder, embed_dim = load_encoder(ckpt_dir=config['ckpt_dir'])
+
+    if config.get('model', {}).get('name') == 'mol_jepa':
+        from mol import MoLJEPA
+        mol_kwargs = config['model'].get('mol', {})
+        print(f"Wrapping base encoder with MoLJEPA (kwargs: {mol_kwargs})...")
+        encoder = MoLJEPA(encoder, **mol_kwargs)
+
     encoder = encoder.to(device)
 
     encoder.eval()
