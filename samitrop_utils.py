@@ -22,7 +22,8 @@ def load_dataset(path, sampling_rate, no_of_samples):
 
 def load_raw_data_samitrop(df, sampling_rate, path, no_of_samples):
     print('=================4======================================')
-    print(f'Loading SAMITROP data at {sampling_rate}Hz from {path}...')
+    print("len(df)" + str(len(df)))
+    # print(f'Loading SAMITROP data at {sampling_rate}Hz from {path}...')
     """
     if sampling_rate == 100:
         if os.path.exists(path + 'samitrop_output/samitrop_raw100.npy'):
@@ -34,7 +35,7 @@ def load_raw_data_samitrop(df, sampling_rate, path, no_of_samples):
     """
     
     if sampling_rate == 500:
-        output_path = path + 'samitrop_output/samitrop_raw500.npy'
+        output_path = path + 'samitrop_raw500s/samitrop_raw500.npy'
         if os.path.exists(output_path):
             print('Loading existing samitrop_raw500.npy from ' + output_path)
             data = np.load(output_path, allow_pickle=True)
@@ -42,8 +43,8 @@ def load_raw_data_samitrop(df, sampling_rate, path, no_of_samples):
                 data = data[:no_of_samples]
             print('Successfully loaded existing samitrop_raw500.npy from ' + output_path)
         else:
-            print('Loading dataset in path: ' + path + "samitrop_output/")
-            batch_size = 100          # tune: 1000–4000 depending on session
+            print('Processing dataset in path: ' + path + "samitrop_output/")
+            batch_size = 200          # tune: 1000–4000 depending on session
             n_total = len(df)
             if no_of_samples is not None:
                 n_total = no_of_samples

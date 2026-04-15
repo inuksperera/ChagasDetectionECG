@@ -50,6 +50,14 @@ def parse():
                         default="/mount/ecg/ptb-xl-1.0.3/", # "/mount/ecg/cpsc_2018/"
                         type=str,
                         help='dataset directory')
+                        
+    parser.add_argument('--data_dir_ptbxl',
+                        type=str,
+                        help='dataset directory')
+
+    parser.add_argument('--data_dir_samitrop',
+                        type=str,
+                        help='dataset directory')
     
     parser.add_argument('--task',
                         default="multilabel",
@@ -189,7 +197,8 @@ def main(config):
     combined_model = FinetuningClassifier(encoder, embed_dim, n_labels, device=device).to(device)
     combined_model.fc = linear_model
     
-    save_path = os.path.join(config['output_dir'], f'checkpoint_linear_eval_final.pth')
+    current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+    save_path = os.path.join(config['output_dir'], f'checkpoint_linear_eval_{config["dataset"]}_{current_time}.pth')
     print(f"SAVING combined model to {save_path}")
 
     # Manual save to ensure compatibility with models.load_encoder
