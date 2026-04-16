@@ -133,9 +133,14 @@ class Encoder_Block(nn.Module):
                 norm_layer=norm_layer)
             for i in range(depth)])
 
-    def forward(self, x, pos, attention_mask=None):
+    def forward(self, x, pos, attention_mask=None, output_hidden_states=False):
+        hidden_states = []
         for _, block in enumerate(self.blocks):
             x = block(x + pos, attention_mask)
+            if output_hidden_states:
+                hidden_states.append(x)
+        if output_hidden_states:
+            return type('outputs', (), {'hidden_states': [None] + hidden_states})()
         return x
     
 class Predictor_Block(nn.Module):
@@ -331,7 +336,7 @@ class MaskTransformer(nn.Module):
 
         return vec
     
-    def representation(self, x):
+    def representation(self, x, output_hidden_states=False):
         assert x.dim() == 3, f'Input should be of dimension 3, x.dim()={x.dim()}'
         assert x.shape[1] == len(self.leads), f'lead error'
         assert x.shape[2] == 2500, f'Input should be of shape (bs, c, 2500), x.shape[2]={x.shape[2]}'
@@ -348,13 +353,25 @@ class MaskTransformer(nn.Module):
         x = x.reshape(bs,-1,50) # (bs,l,2500) -> (bs,l*p,50)
         x = self.W_P(x) # (bs,l*p,50) -> (bs,l*p,embed_dim)
 
-        x = self.encoder_blocks(x, pos_embed, attention_mask)
+        if output_hidden_states:
+            embedding_output = x.clone()
 
-        if self.norm is not None:
-            x = self.norm(x)
+            outputs = self.encoder_blocks(x, pos_embed, attention_mask, output_hidden_states=True)
+            hidden_states = [embedding_output]
+            for h in outputs.hidden_states[1:]:
+                if self.norm is not None:
+                    h = self.norm(h)
+                hidden_states.append(h)
+            outputs.hidden_states = hidden_states
+            return outputs
+        else:
+            x = self.encoder_blocks(x, pos_embed, attention_mask)
 
-        x = torch.mean(x, dim=1) # (bs,l*50,embed_dim) -> (bs,embed_dim)
-        return x
+            if self.norm is not None:
+                x = self.norm(x)
+
+            x = torch.mean(x, dim=1) # (bs,l*50,embed_dim) -> (bs,embed_dim)
+            return x
 
 class MaskTransformerPredictor(nn.Module):
     def __init__(

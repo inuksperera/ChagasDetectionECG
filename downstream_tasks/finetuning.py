@@ -23,7 +23,7 @@ from augmentation import *
 import util.misc as misc
 from engine_downstream import evaluate, train_one_epoch
 from util.losses import build_loss_fn
-from util.misc import NativeScalerWithGradNormCount as NativeScaler
+from util.misc import NativeScalerWithGradNormCount as NativeScaler, print_performance_summary
 from util.optimizer import get_optimizer_from_config
 from util.perf_metrics import build_metric_fn, is_best_metric
 from models import load_encoder
@@ -57,6 +57,14 @@ def parse():
                         default="/mount/ecg/ptb-xl-1.0.3/",
                         type=str,
                         help='dataset directory')
+                                               
+    parser.add_argument('--data_dir_ptbxl',
+                        type=str,
+                        help='dataset directory')
+
+    parser.add_argument('--data_dir_samitrop',
+                        type=str,
+                        help='dataset directory')
     
     parser.add_argument('--task',
                         default="multiclass",
@@ -67,6 +75,11 @@ def parse():
                         default=1.0,
                         type=float,
                         help='data percentage (from 0 to 1) to use in few-shot learning')
+                        
+    parser.add_argument('--yaml_path',
+                        default='../configs/downstream/finetuning/fine_tuning_mol_jepa.yaml',
+                        type=str,
+                        help='path to the yaml config file')
     
 
 
@@ -74,7 +87,7 @@ def parse():
     args, unknown = parser.parse_known_args()
 
 
-    with open(os.path.realpath(f'../configs/downstream/finetuning/fine_tuning_ejepa.yaml'), 'r') as f:
+    with open(os.path.realpath(args.yaml_path), 'r') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
 
@@ -109,7 +122,7 @@ def main(config):
     np.random.seed(seed)
 
     task = config['task']
-    config['metric']['task'] = task
+    # Task will be set in config['metric'] later based on label counts
 
     # define data augmentation
     aug = {
@@ -138,31 +151,51 @@ def main(config):
     # load dataset
     logging.info(f'Loading {config["dataset"]} dataset...')
     print(f'Loading {config["dataset"]} dataset...')
-    waves_train, waves_test, labels_train, labels_test = waves_from_config(config)
+    waves_train, waves_test, labels_train, labels_test = waves_from_config(config, reduced_lead=True)
     
     if task == 'multilabel':
         _, n_labels = labels_train.shape
-        config['metric']['num_labels'] = n_labels
-        print(f"Number of labels: {n_labels}")
         n = n_labels
+        if n_labels == 1:
+            print(f"Number of labels: {n_labels} (Detected Binary Classification)")
+            config['metric']['task'] = 'binary'
+        else:
+            print(f"Number of labels: {n_labels}")
+            config['metric']['task'] = 'multilabel'
+            config['metric']['num_labels'] = n_labels
     else:
         n_classes = len(np.unique(labels_train))
-        config['metric']['num_classes'] = n_classes
-        print(f"Number of classes: {n_classes}")
         n = n_classes
+        if n_classes == 2:
+            print(f"Number of classes: {n_classes} (Detected Binary Classification)")
+            config['metric']['task'] = 'binary'
+        else:
+            print(f"Number of classes: {n_classes}")
+            config['metric']['task'] = 'multiclass'
+            config['metric']['num_classes'] = n_classes
     
     print(f'')
     train_dataset = ECGDataset(waves_train, labels_train, train_transforms)
     test_dataset = ECGDataset(waves_test, labels_test, test_transforms)
 
-    data_loader_train = DataLoader(train_dataset, batch_size=config['dataloader']['batch_size'], shuffle=True, num_workers=config['dataloader']['num_workers'])
-    data_loader_test = DataLoader(test_dataset, batch_size=config['dataloader']['batch_size'], shuffle=False, num_workers=config['dataloader']['num_workers'])
+    # num_workers=config['dataloader']['num_workers']
+    num_workers=2
+
+    data_loader_train = DataLoader(train_dataset, batch_size=config['dataloader']['batch_size'], shuffle=True, num_workers=num_workers)
+    data_loader_test = DataLoader(test_dataset, batch_size=config['dataloader']['batch_size'], shuffle=False, num_workers=num_workers)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
     logging.info(f'Loading encoder from {config["ckpt_dir"]}...')
     print(f'Loading encoder from {config["ckpt_dir"]}...')
     encoder, embed_dim = load_encoder(ckpt_dir=config['ckpt_dir'])
+
+    if config.get('model', {}).get('name') == 'mol_jepa':
+        from mol import MoLJEPA
+        mol_kwargs = config['model'].get('mol', {})
+        print(f"Wrapping base encoder with MoLJEPA (kwargs: {mol_kwargs})...")
+        encoder = MoLJEPA(encoder, **mol_kwargs)
+
     encoder = encoder.to(device)
     model = FinetuningClassifier(encoder, encoder_dim=embed_dim, num_labels=n).to(device)
 
@@ -190,7 +223,11 @@ def main(config):
     output_dir = config['output_dir']
     log_writer = None
 
+    print("Training Started")
+    epoch = 0
+    metrics = {}
     for epoch in range(config['train']['epochs']):
+        print(f"Epoch {epoch+1}/{config['train']['epochs']}")
         train_stats = train_one_epoch(model,
                                         criterion,
                                         data_loader_train,
@@ -203,7 +240,7 @@ def main(config):
                                         use_amp=use_amp,
                                         )
 
-        valid_stats, metrics = evaluate(model,
+        valid_stats, metrics, conf_matrix = evaluate(model,
                                         criterion,
                                         data_loader_test,
                                         device,
@@ -231,7 +268,49 @@ def main(config):
             logging.info(f"Best {metric_name}: {best_metrics[metric_name]:.3f}")
             print(f"Best {metric_name}: {best_metrics[metric_name]:.3f}")
 
-        print('========================================================================================')
+    print("\n" + "="*50)
+    print("FINAL EVALUATION RESULTS")
+    print("="*50)
+    
+    # Extract specific metrics for the summary
+    # Accuracy, F1 Score, Precision, Recall
+    # These names depend on what torchmetrics were requested in config['metric']['target_metrics']
+    # If they are not present, we will try to find them or use default values if missing
+    accuracy = metrics.get('Accuracy', metrics.get('BinaryAccuracy', metrics.get('MulticlassAccuracy', 0.0)))
+    f1 = metrics.get('F1Score', metrics.get('BinaryF1Score', metrics.get('MulticlassF1Score', 0.0)))
+    precision = metrics.get('Precision', metrics.get('BinaryPrecision', metrics.get('MulticlassPrecision', 0.0)))
+    recall = metrics.get('Recall', metrics.get('BinaryRecall', metrics.get('MulticlassRecall', 0.0)))
+    
+    class_names = None
+    if config['dataset'] in ['ptbxl_chagas', 'samitrop', 'combined_data']:
+        class_names = ["Healthy", "Chagas"]
+    
+    print_performance_summary(accuracy, f1, precision, recall, conf_matrix, class_names=class_names)
+    print("="*50 + "\n")
+
+    # ==========================
+    # SAVE MODEL CHECKPOINT
+    # ==========================
+    print("Saving full finetuned model (Encoder + Linear Head)...")
+        
+    current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+    save_path = os.path.join(config['output_dir'], f'checkpoint_finetuning_{config["dataset"]}_epoch{epoch}_{current_time}.pth')
+    print(f"SAVING model to {save_path}")
+
+    # Ensure compatibility with models.load_encoder
+    to_save = {
+        # 'encoder': encoder.state_dict(),       # REMOVED: Redundant (already inside 'model' with 'encoder.' prefix)
+        'model': model.state_dict(),             # Combined weights
+        'config': config,
+        'epoch': epoch,
+        # 'optimizer': optimizer.state_dict(),   # Removed to save space (~60% reduction)
+        'metrics': metrics                       # Store the exact metrics for this epoch
+    }
+        
+    torch.save(to_save, save_path)
+    print(f"SUCCESSFULLY SAVED model to {save_path}")
+
+    print('========================================================================================')
 
 
 if __name__ == '__main__':

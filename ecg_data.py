@@ -439,7 +439,7 @@ def waves_samitrop(data_dir, task='multilabel', reduced_lead=False, downsample=T
     # return waves_train, waves_test, labels_train, labels_test
 
     # change to train and validation only (exclude test)
-    return waves_train, waves_validation, chagas_labels_train, chagas_labels_validation
+    return waves_train, waves_test, chagas_labels_train, chagas_labels_test
 
 
 # Reimplemented the waves_ptbxl() function for chagas detection
@@ -515,7 +515,7 @@ def waves_ptbxl_chagas(data_dir, task='multilabel', reduced_lead=True, downsampl
     #     waves_train, labels_train = convert_to_multiclass(waves_train, labels_train)
     #     waves_test, labels_test = convert_to_multiclass(waves_test, labels_test)
 
-    return waves_train, waves_validation, labels_train, labels_validation
+    return waves_train, waves_test, labels_train, labels_test
 
 
 # Return the combined data from PTB-XL and SAMI-TROP with waves and labels for training and testing
@@ -632,8 +632,8 @@ def waves_ptbxl(data_dir, task='multilabel', reduced_lead=True, downsample=True)
 
     sampling_frequency=500
     # colab code
-    # no_of_samples = 291;
-    no_of_samples = 21799;
+    no_of_samples = 291;
+    # no_of_samples = 21799;
 
     # Load PTB-XL data
     #colab code
