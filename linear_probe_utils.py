@@ -14,15 +14,26 @@ def precompute_features(encoder, loader, device):
     
     with torch.no_grad():
         print('Precomputing features...')
-        for wave, label in tqdm(loader):
-            bs, _, _  = wave.shape
+        for i, (wave, label) in enumerate(tqdm(loader)):
             wave = wave.to(device)
-            feature = encoder.representation(wave) # (bs,c*50,384)
-            all_features.append(feature.cpu())
+            # Ensure the feature is detached and moved to CPU immediately
+            feature = encoder.representation(wave).detach().cpu()
+            
+            all_features.append(feature)
             all_labels.append(label)
+            
+            # Explicitly clear GPU memory of the input batch
+            del wave
+            
+            # Every 50 batches, force clear the CUDA cache to prevent fragmentation OOM
+            if i % 50 == 0:
+                torch.cuda.empty_cache()
                 
     all_features = torch.cat(all_features)
     all_labels = torch.cat(all_labels)
+    
+    # Final clear before moving to training
+    torch.cuda.empty_cache()
     
     return all_features, all_labels
 

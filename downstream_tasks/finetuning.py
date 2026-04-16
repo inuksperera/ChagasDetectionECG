@@ -178,8 +178,11 @@ def main(config):
     train_dataset = ECGDataset(waves_train, labels_train, train_transforms)
     test_dataset = ECGDataset(waves_test, labels_test, test_transforms)
 
-    data_loader_train = DataLoader(train_dataset, batch_size=config['dataloader']['batch_size'], shuffle=True, num_workers=config['dataloader']['num_workers'])
-    data_loader_test = DataLoader(test_dataset, batch_size=config['dataloader']['batch_size'], shuffle=False, num_workers=config['dataloader']['num_workers'])
+    # num_workers=config['dataloader']['num_workers']
+    num_workers=2
+
+    data_loader_train = DataLoader(train_dataset, batch_size=config['dataloader']['batch_size'], shuffle=True, num_workers=num_workers)
+    data_loader_test = DataLoader(test_dataset, batch_size=config['dataloader']['batch_size'], shuffle=False, num_workers=num_workers)
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 

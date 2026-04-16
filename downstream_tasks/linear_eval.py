@@ -158,8 +158,8 @@ def main(config):
         num_workers = 2
         train_dataset = ECGDataset(waves_train_selected, labels_train_selected)
         test_dataset = ECGDataset(waves_test, labels_test)
-        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=num_workers)
-        test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, num_workers=num_workers)
+        train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=num_workers) # changed batch size to 8 from 32
+        test_loader = DataLoader(test_dataset, batch_size=8, shuffle=False, num_workers=num_workers) # changed batch size to 8 from 32
         
         bs = config['dataloader']['batch_size']
         print(f'Start train_loader_linear...')
