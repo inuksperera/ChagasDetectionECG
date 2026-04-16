@@ -19,6 +19,7 @@ from collections import defaultdict, deque
 import torch
 import torch.distributed as dist
 from torch import inf
+import numpy as np
 
 
 class SmoothedValue(object):
@@ -347,3 +348,44 @@ def concat_all_gather(tensor):
 
         output = torch.cat(tensors_gather, dim=0)
         return output
+
+def print_performance_summary(accuracy, f1, precision, recall, conf_matrix, label=None, class_names=None):
+    if label:
+        print(f"\n{'='*20} {label} {'='*20}")
+    
+    print("\nMetrics:")
+    print(f"- Accuracy: {accuracy:.4f}")
+    print(f"- F1 Score: {f1:.4f}")
+    print(f"- Precision: {precision:.4f}")
+    print(f"- Recall: {recall:.4f}")
+    
+    def print_single_cm(cm, cm_label=None):
+        print("\n" + "-"*30)
+        if cm_label:
+            print(f"Confusion Matrix for: {cm_label}")
+        else:
+            print("Confusion Matrix:")
+            
+        if class_names:
+            print(f"Class mapping: {', '.join([f'{i}: {name}' for i, name in enumerate(class_names)])}")
+
+        if isinstance(cm, np.ndarray) and cm.shape == (2, 2):
+            tn, fp, fn, tp = cm.ravel()
+            print("\nActual \\ Predicted | 0     | 1")
+            print("-------------------|-------|-------")
+            print(f"0                  | {tn:<5} | {fp:<5}")
+            print(f"1                  | {fn:<5} | {tp:<5}")
+        else:
+            print(cm)
+        print("-"*30)
+
+    if isinstance(conf_matrix, np.ndarray) and conf_matrix.ndim == 3:
+        # Multilabel case
+        for i, cm in enumerate(conf_matrix):
+            name = class_names[i] if class_names and i < len(class_names) else f"Binary Task {i}"
+            print_single_cm(cm, cm_label=name)
+    else:
+        print_single_cm(conf_matrix)
+    
+    if label:
+        print(f"\n{'='*(42 + len(label))}")

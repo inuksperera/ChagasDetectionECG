@@ -20,6 +20,10 @@ metric:
   sync_on_compute: false
   target_metrics:
   - Accuracy
+  - Precision:
+      average: macro
+  - Recall:
+      average: macro
   - F1Score:
       average: macro
   - AUROC:

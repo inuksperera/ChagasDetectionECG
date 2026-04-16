@@ -111,6 +111,8 @@ def evaluate(model: torch.nn.Module,
     model.eval()
     metric_logger = misc.MetricLogger(delimiter="  ")
     header = 'Test:'
+    all_targets = []
+    all_preds = []
 
     for samples, targets in metric_logger.log_every(data_loader, 50, header):
         samples = samples.to(device, non_blocking=True)
@@ -138,6 +140,9 @@ def evaluate(model: torch.nn.Module,
         metric_fn.update(outputs, targets)
         metric_logger.meters['loss'].update(loss.item(), n=samples.size(0))
 
+        all_targets.append(targets.cpu().numpy())
+        all_preds.append(outputs.cpu().numpy())
+
     metric_logger.synchronize_between_processes()
     valid_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
 
@@ -151,7 +156,25 @@ def evaluate(model: torch.nn.Module,
     # print(f"* {metric_str}")
     metric_fn.reset()
 
-    return valid_stats, metrics
+    # Compute and print Confusion Matrix
+    import numpy as np
+    from sklearn.metrics import confusion_matrix, multilabel_confusion_matrix
+    
+    all_targets = np.concatenate(all_targets)
+    all_preds = np.vstack(all_preds)
+    
+    if isinstance(criterion, torch.nn.BCEWithLogitsLoss):
+        # Multilabel
+        pred_labels = (all_preds >= 0.5).astype(int)
+        conf_matrix = multilabel_confusion_matrix(all_targets, pred_labels)
+        print(f"Confusion Matrix (Multilabel):\n{conf_matrix}")
+    else:
+        # Multiclass
+        pred_labels = np.argmax(all_preds, axis=1)
+        conf_matrix = confusion_matrix(all_targets, pred_labels)
+        # print(f"Confusion Matrix (Multiclass):\n{conf_matrix}")
+
+    return valid_stats, metrics, conf_matrix
 
 
 # @torch.no_grad()

@@ -20,6 +20,7 @@ from models import load_encoder
 from linear_probe_utils import features_dataloader, train_multilabel, train_multiclass, LinearClassifier
 import torch.optim as optim
 import torch.nn as nn
+from util.misc import print_performance_summary
 
 def parse():
     parser = argparse.ArgumentParser('ECG downstream training')
@@ -139,7 +140,7 @@ def main(config):
     data_percentage = config['data_percentage']
     n_trial = 1 if data_percentage == 1 else 3
 
-    AUCs, F1s = [], []
+    AUCs, F1s, Accs, Precs, Recs = [], [], [], [], []
     logging.info(f'Start training...')
     print(f'Start training...')
     for n in range(n_trial):
@@ -180,21 +181,41 @@ def main(config):
         scheduler = CosineLRScheduler(optimizer, t_initial=num_epochs * iterations_per_epoch, cycle_mul=1, lr_min=lr * 0.1, cycle_decay=0.1, warmup_lr_init=lr * 0.1, warmup_t=10, cycle_limit=1, t_in_epochs=True)
 
         if config['task'] == "multilabel":
-            auc, f1 = train_multilabel(num_epochs, linear_model, optimizer, criterion, scheduler, train_loader_linear, test_loader_linear, device, print_every=True)
+            auc, f1, acc, prec, rec, conf_matrix = train_multilabel(num_epochs, linear_model, optimizer, criterion, scheduler, train_loader_linear, test_loader_linear, device, print_every=True)
         else:
-            auc, f1 = train_multiclass(num_epochs, linear_model, criterion, optimizer, train_loader_linear, test_loader_linear, device, scheduler=scheduler, print_every=True, amp=False)
+            auc, f1, acc, prec, rec, conf_matrix = train_multiclass(num_epochs, linear_model, criterion, optimizer, train_loader_linear, test_loader_linear, device, scheduler=scheduler, print_every=True, amp=False)
         
         AUCs.append(auc)
         F1s.append(f1)
-        logging.info(f"Trial {n + 1}: AUC: {auc:.3f}, F1: {f1:.3f}")
-        print(f"Trial {n + 1}: AUC: {auc:.3f}, F1: {f1:.3f}")
+        Accs.append(acc)
+        Precs.append(prec)
+        Recs.append(rec)
+        logging.info(f"Trial {n + 1}: AUC: {auc:.3f}, F1: {f1:.3f}, Accuracy: {acc:.3f}, Precision: {prec:.3f}, Recall: {rec:.3f}")
+        print(f"Trial {n + 1}: AUC: {auc:.3f}, F1: {f1:.3f}, Accuracy: {acc:.3f}, Precision: {prec:.3f}, Recall: {rec:.3f}")
 
     mean_auc = np.mean(AUCs)
     std_auc = np.std(AUCs)
     mean_f1 = np.mean(F1s)
     std_f1 = np.std(F1s)
-    logging.info(f"Mean AUC: {mean_auc:.3f} +- {std_auc:.3f}, Mean F1: {mean_f1:.3f} +- {std_f1:.3f}")
-    print(f"Mean AUC: {mean_auc:.3f} +- {std_auc:.3f}, Mean F1: {mean_f1:.3f} +- {std_f1:.3f}")
+    mean_acc = np.mean(Accs)
+    std_acc = np.std(Accs)
+    mean_prec = np.mean(Precs)
+    std_prec = np.std(Precs)
+    mean_rec = np.mean(Recs)
+    std_rec = np.std(Recs)
+    logging.info(f"Mean AUC: {mean_auc:.3f} +- {std_auc:.3f}, Mean F1: {mean_f1:.3f} +- {std_f1:.3f}, Mean Accuracy: {mean_acc:.3f} +- {std_acc:.3f}, Mean Precision: {mean_prec:.3f} +- {std_prec:.3f}, Mean Recall: {mean_rec:.3f} +- {std_rec:.3f}")
+    print(f"Mean AUC: {mean_auc:.3f} +- {std_auc:.3f}, Mean F1: {mean_f1:.3f} +- {std_f1:.3f}, Mean Accuracy: {mean_acc:.3f} +- {std_acc:.3f}, Mean Precision: {mean_prec:.3f} +- {std_prec:.3f}, Mean Recall: {mean_rec:.3f} +- {std_rec:.3f}")
+
+    print("\n" + "="*50)
+    print("FINAL EVALUATION RESULTS (Linear Eval)")
+    print("="*50)
+
+    class_names = None
+    if config['dataset'] in ['ptbxl_chagas', 'samitrop', 'combined_data']:
+        class_names = ["Healthy", "Chagas"]
+
+    print_performance_summary(mean_acc, mean_f1, mean_prec, mean_rec, conf_matrix, class_names=class_names)
+    print("="*50 + "\n")
 
     # ==========================
     # SAVE COMBINED MODEL
@@ -221,7 +242,7 @@ def main(config):
         'config': config,
         'epoch': config['train']['epochs'],
         'optimizer': optimizer.state_dict(),
-        'metrics': {'auc': mean_auc, 'f1': mean_f1}
+        'metrics': {'auc': mean_auc, 'f1': mean_f1, 'acc': mean_acc, 'prec': mean_prec, 'rec': mean_rec}
     }
     
     # Use torch.save directly

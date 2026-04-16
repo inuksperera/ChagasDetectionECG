@@ -23,7 +23,7 @@ from augmentation import *
 import util.misc as misc
 from engine_downstream import evaluate, train_one_epoch
 from util.losses import build_loss_fn
-from util.misc import NativeScalerWithGradNormCount as NativeScaler
+from util.misc import NativeScalerWithGradNormCount as NativeScaler, print_performance_summary
 from util.optimizer import get_optimizer_from_config
 from util.perf_metrics import build_metric_fn, is_best_metric
 from models import load_encoder
@@ -224,6 +224,8 @@ def main(config):
     log_writer = None
 
     print("Training Started")
+    epoch = 0
+    metrics = {}
     for epoch in range(config['train']['epochs']):
         print(f"Epoch {epoch+1}/{config['train']['epochs']}")
         train_stats = train_one_epoch(model,
@@ -238,7 +240,7 @@ def main(config):
                                         use_amp=use_amp,
                                         )
 
-        valid_stats, metrics = evaluate(model,
+        valid_stats, metrics, conf_matrix = evaluate(model,
                                         criterion,
                                         data_loader_test,
                                         device,
@@ -266,28 +268,49 @@ def main(config):
             logging.info(f"Best {metric_name}: {best_metrics[metric_name]:.3f}")
             print(f"Best {metric_name}: {best_metrics[metric_name]:.3f}")
 
-        # ==========================
-        # SAVE MODEL CHECKPOINT
-        # ==========================
-        print("Saving full finetuned model (Encoder + Linear Head)...")
-        
-        save_path = os.path.join(config['output_dir'], f'checkpoint_finetuning_{config["dataset"]}_epoch{epoch}.pth')
-        print(f"SAVING model to {save_path}")
+    print("\n" + "="*50)
+    print("FINAL EVALUATION RESULTS")
+    print("="*50)
+    
+    # Extract specific metrics for the summary
+    # Accuracy, F1 Score, Precision, Recall
+    # These names depend on what torchmetrics were requested in config['metric']['target_metrics']
+    # If they are not present, we will try to find them or use default values if missing
+    accuracy = metrics.get('Accuracy', metrics.get('BinaryAccuracy', metrics.get('MulticlassAccuracy', 0.0)))
+    f1 = metrics.get('F1Score', metrics.get('BinaryF1Score', metrics.get('MulticlassF1Score', 0.0)))
+    precision = metrics.get('Precision', metrics.get('BinaryPrecision', metrics.get('MulticlassPrecision', 0.0)))
+    recall = metrics.get('Recall', metrics.get('BinaryRecall', metrics.get('MulticlassRecall', 0.0)))
+    
+    class_names = None
+    if config['dataset'] in ['ptbxl_chagas', 'samitrop', 'combined_data']:
+        class_names = ["Healthy", "Chagas"]
+    
+    print_performance_summary(accuracy, f1, precision, recall, conf_matrix, class_names=class_names)
+    print("="*50 + "\n")
 
-        # Ensure compatibility with models.load_encoder
-        to_save = {
-            'encoder': encoder.state_dict(),          # Pure encoder weights (no prefix)
-            'model': model.state_dict(),             # Combined weights (with encoder. and fc. prefixes)
-            'config': config,
-            'epoch': epoch,
-            'optimizer': optimizer.state_dict(),
-            'metrics': metrics                       # Store the exact metrics for this epoch
-        }
+    # ==========================
+    # SAVE MODEL CHECKPOINT
+    # ==========================
+    print("Saving full finetuned model (Encoder + Linear Head)...")
         
-        torch.save(to_save, save_path)
-        print(f"SUCCESSFULLY SAVED model to {save_path}")
+    current_time = datetime.now().strftime("%Y%m%d-%H%M%S")
+    save_path = os.path.join(config['output_dir'], f'checkpoint_finetuning_{config["dataset"]}_epoch{epoch}_{current_time}.pth')
+    print(f"SAVING model to {save_path}")
 
-        print('========================================================================================')
+    # Ensure compatibility with models.load_encoder
+    to_save = {
+        # 'encoder': encoder.state_dict(),       # REMOVED: Redundant (already inside 'model' with 'encoder.' prefix)
+        'model': model.state_dict(),             # Combined weights
+        'config': config,
+        'epoch': epoch,
+        # 'optimizer': optimizer.state_dict(),   # Removed to save space (~60% reduction)
+        'metrics': metrics                       # Store the exact metrics for this epoch
+    }
+        
+    torch.save(to_save, save_path)
+    print(f"SUCCESSFULLY SAVED model to {save_path}")
+
+    print('========================================================================================')
 
 
 if __name__ == '__main__':

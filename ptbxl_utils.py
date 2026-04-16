@@ -157,6 +157,8 @@ def load_raw_data_ptbxl(df, sampling_rate, path, no_of_samples):
             print('Loading existing raw500.npy from ' + path)
             try:
                 data = np.load(output_path, allow_pickle=True)
+                if no_of_samples is not None:
+                    data = data[:no_of_samples]
                 print(f'Successfully loaded {len(data)} records.')
                 return data
             except Exception as e:

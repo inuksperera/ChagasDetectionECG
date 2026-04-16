@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from torch.cuda.amp import GradScaler, autocast
-from sklearn.metrics import f1_score, roc_auc_score
+from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, precision_score, recall_score, confusion_matrix, multilabel_confusion_matrix
 from scipy.special import expit, softmax
 from tqdm import tqdm
 
@@ -128,11 +128,16 @@ def train_multilabel(num_epochs, linear_model, optimizer, criterion, scheduler, 
         # Compute F1 score
         predicted_labels = (all_probs >= 0.5).astype(int)
         macro_f1 = f1_score(all_labels, predicted_labels, average='macro')
+        accuracy = accuracy_score(all_labels, predicted_labels)
+        precision = precision_score(all_labels, predicted_labels, average='macro', zero_division=0)
+        recall = recall_score(all_labels, predicted_labels, average='macro', zero_division=0)
+        conf_matrix = multilabel_confusion_matrix(all_labels, predicted_labels)
         
         if print_every:
-            print(f'Epoch({epoch}) AUC: {avg_auc:.3f}({max_auc:.3f}), Macro F1: {macro_f1:.3f}')
+            print(f'Epoch({epoch}) AUC: {avg_auc:.3f}({max_auc:.3f}), Macro F1: {macro_f1:.3f}, Accuracy: {accuracy:.3f}, Precision: {precision:.3f}, Recall: {recall:.3f}')
+            # print(f'Confusion Matrix:\n{conf_matrix}')
 
-    return avg_auc, macro_f1
+    return avg_auc, macro_f1, accuracy, precision, recall, conf_matrix
 
 
 def train_multiclass(num_epochs, model, criterion, optimizer, train_loader_linear, test_loader_linear, device, scheduler=None, print_every=False, amp=False):
@@ -207,11 +212,18 @@ def train_multiclass(num_epochs, model, criterion, optimizer, train_loader_linea
         predicted_labels = np.argmax(all_outputs, axis=1)
         macro_f1 = f1_score(all_labels, predicted_labels, average='macro')
 
-        if print_every:
-            print(f'Epoch({epoch}) AUC: {avg_auc:.3f}({max_auc:.3f}), Macro F1: {macro_f1:.3f}')
+        accuracy = accuracy_score(all_labels, predicted_labels)
+        precision = precision_score(all_labels, predicted_labels, average='macro', zero_division=0)
+        recall = recall_score(all_labels, predicted_labels, average='macro', zero_division=0)
+        conf_matrix = confusion_matrix(all_labels, predicted_labels)
 
-    print(f'Epoch({epoch}) AUC: {avg_auc:.3f}({max_auc:.3f}), Macro F1: {macro_f1:.3f}')
-    return avg_auc, macro_f1
+        if print_every:
+            print(f'Epoch({epoch}) AUC: {avg_auc:.3f}({max_auc:.3f}), Macro F1: {macro_f1:.3f}, Accuracy: {accuracy:.3f}, Precision: {precision:.3f}, Recall: {recall:.3f}')
+            print(f'Confusion Matrix:\n{conf_matrix}')
+
+    # print(f'Epoch({epoch}) AUC: {avg_auc:.3f}({max_auc:.3f}), Macro F1: {macro_f1:.3f}, Accuracy: {accuracy:.3f}, Precision: {precision:.3f}, Recall: {recall:.3f}')
+    # print(f'Confusion Matrix:\n{conf_matrix}')
+    return avg_auc, macro_f1, accuracy, precision, recall, conf_matrix
 
 
 
