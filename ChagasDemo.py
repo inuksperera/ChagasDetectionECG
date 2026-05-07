@@ -257,7 +257,7 @@ if uploaded_files is not None:
                 # Use the path to trained model
                 if (selected == 'MOL Comparison'):
 
-                    combined_ckpt_path1 = './FINETUNED_WEIGHTS/checkpoint_linear_eval_combined_data_20260415-200225.pth'
+                    combined_ckpt_path1 = './FINETUNED_WEIGHTS/ejepa.pth'
                     result1 = detect_disease(
                     ecg_input=ecg_input,
                     combined_ckpt_path=combined_ckpt_path1, 
@@ -275,7 +275,7 @@ if uploaded_files is not None:
                     threshold=0.5   # Probability threshold for positive prediction
                     )
                 elif (selected == 'MOL Enabled'):
-                    combined_ckpt_path = './FINETUNED_WEIGHTS/mol.pth'
+                    combined_ckpt_path = './FINETUNED_WEIGHTS/ejepa.pth'
                     result = detect_disease(
                     ecg_input=ecg_input,
                     combined_ckpt_path=combined_ckpt_path, 
@@ -284,7 +284,7 @@ if uploaded_files is not None:
                     threshold=0.5   # Probability threshold for positive prediction
                     )
                 elif (selected == 'MOL Disabled'):
-                    combined_ckpt_path = './FINETUNED_WEIGHTS/ejepa.pth'
+                    combined_ckpt_path = './FINETUNED_WEIGHTS/checkpoint_linear_eval_combined_data_20260415-192106.pth'
                     result = detect_disease(
                     ecg_input=ecg_input,
                     combined_ckpt_path=combined_ckpt_path, 
