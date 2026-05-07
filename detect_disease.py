@@ -72,33 +72,9 @@ def detect_disease(ecg_input, encoder_ckpt_path=None, head_ckpt_path=None, combi
         print(f"Loading combined model from {combined_ckpt_path}...")
         checkpoint = torch.load(combined_ckpt_path, map_location=device, weights_only=False)
         # 'save_model' saves in 'model' key
-        state_dict = checkpoint.get('model', checkpoint)
-
-        print("\n--- Model state_dict keys (first 20) ---")
-        model_keys = list(model.state_dict().keys())
-        print(model_keys[:20])
-        print(f"Total model keys: {len(model_keys)}")
-
-        print("\n--- Checkpoint state_dict keys (first 20) ---")
-        ckpt_keys = list(state_dict.keys())
-        print(ckpt_keys[:20])
-        print(f"Total checkpoint keys: {len(ckpt_keys)}")
-
-        # Remap 'encoder.base.' -> 'encoder.'
-        remapped_state_dict = {}
-        for k, v in state_dict.items():
-            if k.startswith('encoder.base.'):
-                new_k = 'encoder.' + k[len('encoder.base.'):]
-                remapped_state_dict[new_k] = v
-            else:
-                remapped_state_dict[k] = v
-
-        print("\n--- Remapped checkpoint keys (first 20) ---")
-        remap_keys = list(remapped_state_dict.keys())
-        print(remap_keys[:20])
-        print(f"Total remapped keys: {len(remap_keys)}")
-
-        msg = model.load_state_dict(remapped_state_dict, strict=False)
+        state_dict = checkpoint.get('model', checkpoint) 
+        
+        msg = model.load_state_dict(state_dict, strict=False)
         print(f"Load status: {msg}")
         
     elif head_ckpt_path:
