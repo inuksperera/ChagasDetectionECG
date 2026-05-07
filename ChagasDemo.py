@@ -12,6 +12,18 @@ import base64
 import numpy as np
 import torch
 from detect_disease import detect_disease
+import streamlit as st
+import wfdb
+import os
+import tempfile
+import numpy as np
+import numpy as np
+from detect_disease import detect_disease
+import torch
+import os
+import wfdb
+from ecg_data import normalize_ecg_per_lead
+from scipy.signal import resample
 
 # st.title("Chagas Disease Detection from reduced 8-Lead ECG Using Deep Learning")
 # st.markdown("""
@@ -172,30 +184,115 @@ st.markdown("""
 
 
 # File uploading
-uploaded_file = st.file_uploader("Upload an ECG sample ()")
-if uploaded_file is not None:
-    st.info(f"File uploaded: {uploaded_file.name}")
+uploaded_files = st.file_uploader("Upload ECG files (.dat AND .hea)", type=['dat', 'hea'], accept_multiple_files=True)
+if uploaded_files is not None:
+    # st.info(f"File uploaded: {uploaded_files}")
     
     try:
         # Load the uploaded file as a numpy array
         # ecg_data = np.load(uploaded_file)
-        dummy_data = np.random.randn(1, 8, 2500).astype(np.float32)
+        # dummy_data = np.random.randn(1, 8, 2500).astype(np.float32)
         
         # # Display sample of the data (Optional viz if you want, but sticking to request)
         # if st.checkbox("Show ECG Signal Metadata"):
         #     st.write("Data Shape:", ecg_data.shape)
 
+        signals = None
+        fields = None
+        ecg_input = None
+
+        if uploaded_files:
+            if len(uploaded_files) > 2:
+                st.error("Please upload only 2 files (.dat and .hea).")
+            elif len(uploaded_files) < 2:
+                st.warning("Upload both .dat and .hea files.")
+            elif len(uploaded_files) == 2:
+                st.info("2 files uploaded correctly!")
+                if uploaded_files:
+                    with tempfile.TemporaryDirectory() as tmpdir:
+                        # Save all uploaded files to the temp directory
+                        for up_file in uploaded_files:
+                            with open(os.path.join(tmpdir, up_file.name), "wb") as f:
+                                f.write(up_file.getbuffer())
+                        
+                        # Identify the base record name (the filename without extension)
+                        # We look for the .dat file specifically to get the name
+                        dat_files = [f for f in uploaded_files if f.name.endswith('.dat')]
+                        
+                        if dat_files:
+                            record_name = os.path.join(tmpdir, os.path.splitext(dat_files[0].name)[0])
+                            
+                            try:
+                                # --- ASSIGNMENT ---
+                                signals, fields = wfdb.rdsamp(record_name)
+                                
+                            except Exception as e:
+                                st.error(f"WFDB Error: {e}")
+                        else:
+                            st.warning("Please ensure you upload at least the .dat file.")
+
+                # dummy_data = np.random.randn(1, 8, 2500).astype(np.float32)
+                ecg_input = np.expand_dims(signals, axis=0).astype(np.float32)
+                st.success(f"Successfully loaded {dat_files[0].name}")
+                ecg_input = ecg_input.transpose(0, 2, 1)
+
+                # Select only required leads (only uses 8 leads out of 12)
+                ecg_input = np.concatenate((ecg_input[:, :2, :], ecg_input[:, 6:, :]), axis=1)
+                    
+                # Downsample if needed
+                ecg_input = resample(ecg_input, 2500, axis=2)
+
+                print("SHAPE AFTER REDUCED LEAD: " + str(ecg_input.shape))
+
+
+                # apply normalization (Z-score) as expected by the trained model
+                ecg_input = normalize_ecg_per_lead(ecg_input)
+
+
         if st.button("Run Prediction"):
             with st.spinner("Analyzing ECG with Deep Learning model..."):
-                # Use the path to your trained linear eval model
-                combined_ckpt = './downstream_tasks/output/linear_eval/checkpoint_linear_eval_final.pth'
+                result = None
+                result1 = None
+                result2 = None
+                # Use the path to trained model
+                if (selected == 'MOL Comparison'):
+
+                    combined_ckpt_path1 = './FINETUNED_WEIGHTS/checkpoint_linear_eval_combined_data_20260415-200225.pth'
+                    result1 = detect_disease(
+                    ecg_input=ecg_input,
+                    combined_ckpt_path=combined_ckpt_path1, 
+                    num_classes=1,  # 1 for binary classification (Chagas Positive/Negative)
+                    device='cuda' if torch.cuda.is_available() else 'cpu',
+                    threshold=0.5   # Probability threshold for positive prediction
+                    )
+
+                    combined_ckpt_path2 = './FINETUNED_WEIGHTS/checkpoint_linear_eval_combined_data_20260415-192106.pth'
+                    result2 = detect_disease(
+                    ecg_input=ecg_input,
+                    combined_ckpt_path=combined_ckpt_path2, 
+                    num_classes=1,  # 1 for binary classification (Chagas Positive/Negative)
+                    device='cuda' if torch.cuda.is_available() else 'cpu',
+                    threshold=0.5   # Probability threshold for positive prediction
+                    )
+                elif (selected == 'MOL Enabled'):
+                    combined_ckpt_path = './FINETUNED_WEIGHTS/mol.pth'
+                    result = detect_disease(
+                    ecg_input=ecg_input,
+                    combined_ckpt_path=combined_ckpt_path, 
+                    num_classes=1,  # 1 for binary classification (Chagas Positive/Negative)
+                    device='cuda' if torch.cuda.is_available() else 'cpu',
+                    threshold=0.5   # Probability threshold for positive prediction
+                    )
+                elif (selected == 'MOL Disabled'):
+                    combined_ckpt_path = './FINETUNED_WEIGHTS/ejepa.pth'
+                    result = detect_disease(
+                    ecg_input=ecg_input,
+                    combined_ckpt_path=combined_ckpt_path, 
+                    num_classes=1,  # 1 for binary classification (Chagas Positive/Negative)
+                    device='cuda' if torch.cuda.is_available() else 'cpu',
+                    threshold=0.5   # Probability threshold for positive prediction
+                    )
                 
-                result = detect_disease(
-                    ecg_input=dummy_data,
-                    combined_ckpt_path=combined_ckpt,
-                    num_classes=5,
-                    device='cuda' if torch.cuda.is_available() else 'cpu'
-                )
 
 
                 # Display Analysis Results
@@ -205,38 +302,50 @@ if uploaded_file is not None:
                 #show comparison if MOL Comparison is selected
                 if (selected == 'MOL Comparison'):
 
+                    # Extract values for display
+                    prob1 = float(result1['probability'].flatten()[0])
+                    pred1 = int(result1['prediction'].flatten()[0])
+                    prob2 = float(result2['probability'].flatten()[0])
+                    pred2 = int(result2['prediction'].flatten()[0])
+
                     # Create two columns
                     left_col, right_col = st.columns(2)
 
-                    # Left column - all content inside one div
+                    # Left column - MOL Enabled
                     with left_col:
                         st.markdown(f"""
                         <div class="pred-box">
 
                         <h5 style="text-align:center;">MOL Enabled</h5>
 
-                        - Chagas Positive Prediction: 60.0%
-                        - Chagas Negative Prediction: 40.0%
-
+                        - Chagas Positive Prediction: {prob1:.1%}
+                        - Chagas Negative Prediction: {1.0 - prob1:.1%}
+                        
                         </div>
                         """, unsafe_allow_html=True)
 
-                        st.success("Result: Chagas Positive")
+                        if pred1 == 1:
+                            st.success("Result: Chagas Positive")
+                        else:
+                            st.error("Result: Chagas Negative")
 
-                    # Right column - all content inside one div
+                    # Right column - MOL Disabled
                     with right_col:
                         st.markdown(f"""
                         <div class="pred-box">
 
                         <h5 style="text-align:center;">MOL Disabled</h5>
 
-                        - Chagas Positive Prediction: 45.0%   
-                        - Chagas Negative Prediction: 55.0%
+                        - Chagas Positive Prediction: {prob2:.1%}   
+                        - Chagas Negative Prediction: {1.0 - prob2:.1%}
 
                         </div>
                         """, unsafe_allow_html=True)
                             
-                        st.error("Result: Chagas Negative")
+                        if pred2 == 1:
+                            st.success("Result: Chagas Positive")
+                        else:
+                            st.error("Result: Chagas Negative")
                     
    
 
@@ -268,48 +377,26 @@ if uploaded_file is not None:
 
                 #otherwise only show selected MOL setting results
                 else:
-                
-                    if 'predicted_disease' in result:
-                        # Index 0 if batch size is 1
-                        main_diagnosis = result['predicted_disease'][0] if isinstance(result['predicted_disease'], list) else result['predicted_disease']
-                        
-                        st.success(f"Primary Detection: **{main_diagnosis}**")
-                        
-                        st.write("### Prediction Breakdown")
-                        
-                        top_diseases = result['top_diseases'][0] if isinstance(result['top_diseases'][0], list) else result['top_diseases']
-                        top_probs = result['top_probs'][0] if isinstance(result['top_probs'], np.ndarray) and result['top_probs'].ndim > 1 else result['top_probs']
-                        
-                        cols = st.columns(len(top_diseases))
-                        for idx, (disease, prob) in enumerate(zip(top_diseases, top_probs)):
-                            with cols[idx]:
-                                st.metric(label=disease, value=f"{prob:.1%}")
-                                
-                        st.info("Mapping: NORM (Normal), MI (Infarction), STTC (ST/T Change), CD (Conduction), HYP (Hypertrophy)")
-                    else:
-                        st.write("Prediction indices:", result['prediction'])
-                        st.write("Probability Distribution:", result['probability'])
+                    # Extract values for display
+                    prob = float(result['probability'].flatten()[0])
+                    pred = int(result['prediction'].flatten()[0])
 
-
-
-
-
-                                       # Display Analysis Results
+                    # Display Analysis Results
                     st.markdown('<hr style="border: 1px solid white; opacity: 0.4;">', unsafe_allow_html=True)
                     st.subheader("Diagnostic Results")
-
 
                     # Create two columns
                     left_col2, right_col2 = st.columns(2)
 
-                    # Left column - all content inside one div
+                    # Left column - metric for positive prediction
                     with left_col2:
                         st.metric(label="Chagas Positive Prediction", value=f"{prob:.1%}")
 
+                    # Right column - metric for negative prediction
                     with right_col2:
-                        st.metric(label="Chagas Negative Prediction", value=f"{(1-prob):.1%}")
+                        st.metric(label="Chagas Negative Prediction", value=f"{(1.0 - prob):.1%}")
                     
-                    if prob > (1-prob):
+                    if pred == 1:
                         st.success("Result: Chagas Positive")
                     else:
                         st.error("Result: Chagas Negative")
