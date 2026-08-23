@@ -173,7 +173,7 @@ Install a compatible **PyTorch 2.0+** build for your machine (CPU or CUDA) if it
 
 ### 4. Download and add the fine-tuned weights
 
-The fine-tuned model weights are available in the following Google Drive folder. Download the `FINETUNED_WEIGHTS` folder from it: (https://drive.google.com/drive/folders/1ERg4B0wUfSNdRay8osEe0E1Tww2rK7kL?usp=sharing)
+The fine-tuned model weights are available in the following Google Drive folder. Download the `FINETUNED_WEIGHTS` folder from it: (https://drive.google.com/drive/folders/1q89TbubEyNSlgJsxxmO85GLUVbYreoft?usp=sharing)
 
 The folder will be downloaded as a `.zip` file. After downloading:
 1. Extract the `.zip` file.
