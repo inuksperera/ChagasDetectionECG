@@ -2,11 +2,9 @@
 
 ### ECG-Based Chagas Disease Detection with a JEPA Foundation Model
 
-Chagas-JEPA is a deep learning pipeline for detecting **Chagas disease from ECG signals**. The project adapts a pretrained **ECG-JEPA** representation-learning model to a binary Chagas classification task and explores whether a **Mixture-of-Layers (MoL)** aggregation module can improve downstream classification by using information from multiple transformer layers instead of relying only on the final representation.
+Chagas-JEPA is a deep learning pipeline for detecting **Chagas disease from ECG signals**. The project adapts a pretrained **ECG-JEPA** representation-learning model to a binary Chagas classification task and explores whether a **Mixture-of-Layers (MoL)** aggregation mechanism can improve downstream classification by using information from multiple transformer layers instead of relying only on the final layer.
 
-The repository includes the model implementation, preprocessing and downstream-training code, saved fine-tuned checkpoints, and a **Streamlit web application** for testing ECG records through a simple upload interface.
-
-> **Important:** This project is a research prototype and is **not a clinical diagnostic tool**. Predictions should not be used for medical diagnosis or treatment decisions.
+The repository includes the model implementation, preprocessing and downstream-training code, saved fine-tuned checkpoints, and a **Streamlit web application** for testing ECG records through a simple drag-and-drop upload interface.
 
 ---
 
@@ -16,11 +14,9 @@ Chagas disease can produce cardiac abnormalities that are observable in ECG reco
 
 The core approach combines:
 
-- **ECG-JEPA** — a Joint-Embedding Predictive Architecture adapted to ECG signals found from this GitHub repository:
-- (https://github.com/sehunfromdaegu/ECG_JEPA), Linked paper: (https://arxiv.org/abs/2410.08559)
-- **Transformer-based representation learning** — ECGs are split into patches and processed using self-attention to learn relationships across leads and time.
-- **Self-supervised pretraining** — the encoder learns general ECG representations before downstream classification.
-- **Mixture-of-Layers (MoL)** — intermediate transformer representations are treated as complementary sources of information and combined using a learned gating network. The work presented in (https://arxiv.org/abs/2509.00102) experiments with different multi-layer aggregation architectures and compares their effectiveness for ECG foundation models.
+- **ECG-JEPA** — a model that implemented the Joint-Embedding Predictive Architecture and adapted it to work with ECG signals found from this GitHub repository that also initiated an experimentation towards using a reduced number of leads:
+(https://github.com/sehunfromdaegu/ECG_JEPA), paper linked to GitHub repo: (https://arxiv.org/abs/2410.08559)
+- **Mixture-of-Layers (MoL)** — intermediate transformer layers are treated as rich sources of information and combined using a learned gating network. The work presented in (https://arxiv.org/abs/2509.00102) experiments with different multi-layer aggregation architectures and compares their effectiveness for ECG foundation models.
 - **Downstream classification** — a classifier head is trained for binary Chagas-positive / Chagas-negative prediction.
 - **Streamlit inference UI** — ECG records can be uploaded as WFDB `.dat` + `.hea` pairs and passed through the same preprocessing pipeline used by the trained model.
 
@@ -96,10 +92,30 @@ The pipeline is:
   [batch, 8, 2500]
         │
         ▼
- Chagas-JEPA classifier
+ Chagas-JEPA encoder
+        │
+        ▼
+  Gating Network
+        │
+        ▼
+  Weighted sum
+        │
+        ▼
+ Classifier head
+        │
+        ▼
+Chagas Prediction
 ```
 
 The reduced lead set is created directly in the application by retaining the first two standard leads and V1–V6. Inputs that do not have 2,500 samples are resampled before inference.
+
+---
+
+### Downstream Chagas classification
+
+The pretrained encoder is adapted to the Chagas task using a classification head. The MoL mechanism adds the gating network between the encoder representation and classifier.
+
+<img width="2127" height="1855" alt="model diagram final" src="https://github.com/user-attachments/assets/d5d7646c-b079-4539-ab02-ae1f8bf9b115" />
 
 ---
 
@@ -109,47 +125,9 @@ The project works with publicly available ECG datasets used across pretraining a
 
 | Dataset | Role in the project |
 | --- | --- |
-| **CODE-15%** | ECG representation learning / Chagas-related training data |
+| **CODE-15%** | General ECG representation learning |
 | **PTB-XL** | Downstream ECG classification and Chagas-related training/evaluation |
-| **SaMi-Trop** | Chagas-related ECG training/evaluation |
-
-The underlying ECG-JEPA implementation also contains support for additional ECG datasets used during development and benchmarking.
-
----
-
-## Results
-
-The project evaluates the Chagas classifier using standard classification metrics including **accuracy, precision, recall, F1-score, AUROC, and confusion matrices**.
-
-The final evaluation reported in the project compared the MoL-enabled and non-MoL configurations:
-
-| Configuration | Accuracy | F1 | Precision | Recall |
-| --- | ---: | ---: | ---: | ---: |
-| **MoL Enabled** | 0.9949 | 0.9636 | 0.9578 | 0.9695 |
-| **MoL Disabled** | 0.9962 | 0.9726 | 0.9657 | 0.9756 |
-
-These results are included to document the experimental comparison; they should not be interpreted as clinical validation.
-
----
-
-## Streamlit Demo
-
-The repository contains a Streamlit interface in `ChagasDemo.py`.
-
-The application provides three modes:
-
-- **MoL Comparison** — runs both configurations and displays their predictions side by side.
-- **MoL Enabled** — uses the MoL configuration.
-- **MoL Disabled** — uses the non-MoL configuration.
-
-The uploader expects the two WFDB files belonging to the same ECG record:
-
-```text
-record_name.dat
-record_name.hea
-```
-
-After uploading both files, click **Run Prediction** to process the ECG and display the Chagas prediction and confidence.
+| **SaMi-Trop** | Downstream ECG classification and Chagas-related training/evaluation |
 
 ---
 
@@ -247,87 +225,27 @@ testing data/positive/3629.dat
 testing data/positive/3629.hea
 ```
 
-In the Streamlit application:
-
-1. Select **MoL Comparison**, **MoL Enabled**, or **MoL Disabled** from the sidebar.
-2. Upload **both** the `.dat` and `.hea` files for one test record.
-3. Click **Run Prediction**.
-4. The application will load the ECG through WFDB, reduce it to 8 leads, resample it, normalize the leads, and pass it to the trained model.
-
-The included positive and negative examples make it possible to verify the complete inference pipeline without downloading the original research datasets.
 
 ---
 
-## Repository Structure
+## Streamlit Demo
+
+The repository contains a Streamlit interface in `ChagasDemo.py`.
+
+The application provides three modes:
+
+- **MoL Comparison** — runs both configurations and displays their predictions side by side.
+- **MoL Enabled** — uses the MoL configuration.
+- **MoL Disabled** — uses the non-MoL configuration.
+
+The uploader expects the two WFDB files belonging to the same ECG record. The header and data files:
 
 ```text
-ChagasDetectionECG/
-│
-├── ChagasDemo.py                    # Streamlit inference application
-├── detect_disease.py                # Model loading and inference
-├── ecg_jepa.py                      # ECG-JEPA architecture
-├── models.py                         # Encoder construction/loading
-├── mol.py                            # Mixture-of-Layers implementation
-├── linear_probe_utils.py             # Linear / fine-tuning classifier utilities
-├── ecg_data.py                      # ECG data utilities and normalization
-├── ptbxl_utils.py                   # PTB-XL data processing
-├── ptbxl_chagas_utils.py            # Chagas/PTB-XL processing utilities
-├── samitrop_utils.py                # SaMi-Trop data utilities
-├── augmentation.py                  # Data augmentation utilities
-│
-├── downstream_tasks/
-│   ├── finetuning.py                # Fine-tuning pipeline
-│   ├── linear_eval.py               # Linear evaluation pipeline
-│   └── output/                      # Development outputs/logs
-│
-├── configs/
-│   └── downstream/                 # Training/evaluation configurations
-│
-├── FINETUNED_WEIGHTS/               # Trained model checkpoints
-│
-├── testing data/
-│   ├── negative/                    # Example negative ECG records
-│   └── positive/                    # Example positive ECG records
-│
-├── pretrain_ECG_JEPA.py             # Self-supervised pretraining pipeline
-├── prepare_samitrop_data.py         # SaMi-Trop preparation
-├── test.py                           # Inference/testing script
-├── test2.py                          # Additional inference test
-├── requirements.txt
-└── README.md
+record_name.dat
+record_name.hea
 ```
 
----
-
-## Training Pipeline
-
-The broader training workflow is organised into two main stages:
-
-### Stage 1 — Self-supervised pretraining
-
-The ECG-JEPA encoder learns ECG representations from ECG data without requiring the downstream Chagas label for every training example.
-
-```text
-Large-scale ECG data
-        │
-        ▼
-Patch ECG signals by lead/time
-        │
-        ▼
-Cross-Pattern Attention
-        │
-        ▼
-Transformer encoder
-        │
-        ▼
-Learn general ECG representations
-```
-
-### Stage 2 — Downstream Chagas classification
-
-The pretrained encoder is adapted to the Chagas task using a classification head. The MoL experiment adds the layer-aggregation module between the encoder representation and classifier.
-
-<img width="2127" height="1855" alt="model diagram final" src="https://github.com/user-attachments/assets/d5d7646c-b079-4539-ab02-ae1f8bf9b115" />
+After uploading both files, click **Run Prediction** to process the ECG and display the Chagas prediction and confidence.
 
 ---
 
@@ -350,5 +268,3 @@ Fine-tuning pipeline for adapting the pretrained encoder to downstream ECG class
 
 ### `downstream_tasks/linear_eval.py`
 Linear-evaluation pipeline in which the encoder representation is used with a classifier head.
-
----
