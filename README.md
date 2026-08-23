@@ -165,31 +165,31 @@ source .venv/bin/activate
 ### 3. Install dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -r new_requirements.txt
 pip install streamlit streamlit-option-menu
 ```
 
 Install a compatible **PyTorch 2.0+** build for your machine (CPU or CUDA) if it is not already installed. For CUDA, use the installation command appropriate for your CUDA version from the official PyTorch instructions.
 
-### 4. Check the fine-tuned weights
+### 4. Download and add the fine-tuned weights
 
-The trained checkpoints are stored in:
+The fine-tuned model weights are available in the following Google Drive folder. Download the `FINETUNED_WEIGHTS` folder from it: (https://drive.google.com/drive/folders/1ERg4B0wUfSNdRay8osEe0E1Tww2rK7kL?usp=sharing)
+
+The folder will be downloaded as a `.zip` file. After downloading:
+1. Extract the `.zip` file.
+2. Place the extracted `FINETUNED_WEIGHTS` folder directly in the **root directory of the repository**.
+
+The final structure should look like:
 
 ```text
-FINETUNED_WEIGHTS/
+ChagasDetectionECG/
+├── FINETUNED_WEIGHTS/
+│   ├── ejepa.pth
+│   └── checkpoint_linear_eval_combined_data_20260415-192106.pth
+├── ChagasDemo.py
+├── 
 ```
 
-The application expects these files:
-
-```text
-FINETUNED_WEIGHTS/
-├── ejepa.pth
-└── checkpoint_linear_eval_combined_data_20260415-192106.pth
-```
-
-`ejepa.pth` is used for the **MoL-enabled** configuration, while `checkpoint_linear_eval_combined_data_20260415-192106.pth` is used for the **MoL-disabled** configuration.
-
-> The large checkpoint files were removed from the project archive provided for inspection here because of upload size limitations. In the GitHub repository, the `FINETUNED_WEIGHTS` folder should contain the trained weight files above.
 
 ### 5. Launch the Streamlit application
 
@@ -201,9 +201,9 @@ streamlit run "ChagasDemo.py"
 
 Streamlit will open the application in your browser.
 
-### 6. Test the model using the included ECG samples
+### 6. Test the model using the Streamlit app and included ECG samples
 
-Sample testing records are already included in:
+The repository contains sample ECG records in:
 
 ```text
 testing data/
@@ -224,30 +224,16 @@ or:
 testing data/positive/3629.dat
 testing data/positive/3629.hea
 ```
+The Streamlit application provides three modes:
 
+MoL Comparison — runs both configurations and displays their predictions side by side.
+MoL Enabled — uses the MoL configuration.
+MoL Disabled — uses the non-MoL configuration.
 
----
-
-## Streamlit Demo
-
-The repository contains a Streamlit interface in `ChagasDemo.py`.
-
-The application provides three modes:
-
-- **MoL Comparison** — runs both configurations and displays their predictions side by side.
-- **MoL Enabled** — uses the MoL configuration.
-- **MoL Disabled** — uses the non-MoL configuration.
-
-The uploader expects the two WFDB files belonging to the same ECG record. The header and data files:
-
-```text
-record_name.dat
-record_name.hea
-```
-
-After uploading both files, click **Run Prediction** to process the ECG and display the Chagas prediction and confidence.
+To test the model, select a mode from the sidebar and upload both the .dat and .hea files belonging to the same ECG record. Then click Run Prediction. The application will load the ECG through WFDB, reduce it to 8 leads, resample and normalize the signal, and pass it through the selected model to display the predicted Chagas classification and confidence.
 
 ---
+
 
 ## Key Files
 
