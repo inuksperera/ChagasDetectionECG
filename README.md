@@ -131,6 +131,14 @@ The project works with publicly available ECG datasets used across pretraining a
 
 ---
 
+## Demo Video 
+ 
+A short demonstration of the Chagas-JEPA Web Application, showing how ECG samples are uploaded to the interface and processed to generate Chagas disease predictions using the different model configurations. 
+ 
+https://drive.google.com/file/d/1tlyiByr0N6MXi9-Bt6rJRavcIRObrkjX/view?usp=sharing
+
+---
+
 ## Running the Project Locally
 
 ### 1. Clone the repository
