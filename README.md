@@ -89,6 +89,7 @@ The pipeline is:
  Per-lead Z-score normalization
         │
         ▼
+Break the dataset into batches
   [batch, 8, 2500]
         │
         ▼
@@ -113,7 +114,7 @@ The reduced lead set is created directly in the application by retaining the fir
 
 ### Downstream Chagas classification
 
-The pretrained encoder is adapted to the Chagas task using a classification head. The MoL mechanism adds the gating network between the encoder representation and classifier.
+The following image represents the architecture diagram for the model. The pretrained encoder is trained to learn general ECG features by using a masking mechanism. It is then trained on Chagas-specific data to learn abnormalities that arise in a patient that has contracted the disease. Disease prediction is conducted using a specified threshold in the classification head. The MoL mechanism is implemented by adding a gating network and a weighted sum between the encoder representation and classifier.
 
 <img width="2127" height="1855" alt="model diagram final" src="https://github.com/user-attachments/assets/d5d7646c-b079-4539-ab02-ae1f8bf9b115" />
 
@@ -133,7 +134,7 @@ The project works with publicly available ECG datasets used across pretraining a
 
 ## Demo Video 
  
-A short demonstration of the Chagas-JEPA Web Application, showing how ECG samples are uploaded to the interface and processed to generate Chagas disease predictions using the different model configurations. 
+A short demonstration of the Chagas-JEPA Web Application is available at the link below. It shows how ECG samples are uploaded to the interface and processed to generate Chagas disease predictions using the different model configurations. 
  
 [▶️ Demo Video](https://drive.google.com/file/d/1tlyiByr0N6MXi9-Bt6rJRavcIRObrkjX/view?usp=sharing)
 
@@ -181,7 +182,9 @@ Install a compatible **PyTorch 2.0+** build for your machine (CPU or CUDA) if it
 
 ### 4. Download and add the fine-tuned weights
 
-The fine-tuned model weights are available in the following Google Drive folder. Download the `FINETUNED_WEIGHTS` folder from it: (https://drive.google.com/drive/folders/1q89TbubEyNSlgJsxxmO85GLUVbYreoft?usp=sharing)
+The fine-tuned model weights are available for download in the following Google Drive folder. Download the `FINETUNED_WEIGHTS` folder from it.
+**Note: the `FINETUNED_WEIGHTS` folder is around 600MB, so it may take some time for Google Drive to zip the contents and start the download.**
+(https://drive.google.com/drive/folders/1q89TbubEyNSlgJsxxmO85GLUVbYreoft?usp=sharing)
 
 The folder will be downloaded as a `.zip` file. After downloading:
 1. Extract the `.zip` file.
@@ -232,11 +235,13 @@ or:
 testing data/positive/3629.dat
 testing data/positive/3629.hea
 ```
+
 The Streamlit application provides three modes:
 
-MoL Comparison — runs both configurations and displays their predictions side by side.
-MoL Enabled — uses the MoL configuration.
-MoL Disabled — uses the non-MoL configuration.
+MoL Enabled - uses the weights that were trained **with** the MoL configuration.
+MoL Disabled - uses the weights that were trained **without** the MoL configuration.
+MoL Comparison - runs both configurations and displays their predictions side by side.
+
 
 To test the model, select a mode from the sidebar and upload both the .dat and .hea files belonging to the same ECG record. Then click Run Prediction. The application will load the ECG through WFDB, reduce it to 8 leads, resample and normalize the signal, and pass it through the selected model to display the predicted Chagas classification and confidence.
 
@@ -258,7 +263,7 @@ Contains the ECG-JEPA transformer architecture, including the encoder, predictor
 Implements the Mixture-of-Layers architecture through the `MoLJEPA` wrapper and the `PMA` gating/aggregation module.
 
 ### `downstream_tasks/finetuning.py`
-Fine-tuning pipeline for adapting the pretrained encoder to downstream ECG classification tasks. It supports the `mol_jepa` configuration and saves combined model checkpoints.
+Fine-tuning pipeline that trains the entire model pipeline, including the pretrained encoder and classifier, to adapt the model to downstream ECG classification tasks.
 
 ### `downstream_tasks/linear_eval.py`
-Linear-evaluation pipeline in which the encoder representation is used with a classifier head.
+Linear-evaluation pipeline that keeps the encoder frozen and trains only the classifier head, providing a faster approach that is better suited for development and evaluation.
