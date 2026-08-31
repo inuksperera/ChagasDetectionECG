@@ -183,7 +183,9 @@ Install a compatible **PyTorch 2.0+** build for your machine (CPU or CUDA) if it
 ### 4. Download and add the fine-tuned weights
 
 The fine-tuned model weights are available for download in the following Google Drive folder. Download the `FINETUNED_WEIGHTS` folder from it.
+
 **Note: the `FINETUNED_WEIGHTS` folder is around 600MB, so it may take some time for Google Drive to zip the contents and start the download.**
+
 (https://drive.google.com/drive/folders/1q89TbubEyNSlgJsxxmO85GLUVbYreoft?usp=sharing)
 
 The folder will be downloaded as a `.zip` file. After downloading:
@@ -238,9 +240,9 @@ testing data/positive/3629.hea
 
 The Streamlit application provides three modes:
 
-MoL Enabled - uses the weights that were trained **with** the MoL configuration.
-MoL Disabled - uses the weights that were trained **without** the MoL configuration.
-MoL Comparison - runs both configurations and displays their predictions side by side.
+- MoL Enabled - uses the weights that were trained **with** the MoL configuration.
+- MoL Disabled - uses the weights that were trained **without** the MoL configuration.
+- MoL Comparison - runs both configurations and displays their predictions side by side.
 
 
 To test the model, select a mode from the sidebar and upload both the .dat and .hea files belonging to the same ECG record. Then click Run Prediction. The application will load the ECG through WFDB, reduce it to 8 leads, resample and normalize the signal, and pass it through the selected model to display the predicted Chagas classification and confidence.
